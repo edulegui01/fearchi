@@ -5,7 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:orange": "npm run theme:orange && vite",
+    "dev:red": "npm run theme:red && vite",
     "build": "tsc -b && vite build",
+    "build:orange": "npm run theme:orange && npm run build",
+    "build:red": "npm run theme:red && npm run build",
+    "theme:orange": "cp tailwind.config.orange.js tailwind.config.js",
+    "theme:red": "cp tailwind.config.red.js tailwind.config.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

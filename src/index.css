@@ -16,4 +16,6 @@ html, body {
   height: 100%;
   width: 100%;
   font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  touch-action: pan-x pan-y;
+  -ms-content-zooming: none;
 }

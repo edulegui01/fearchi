@@ -1,63 +1,108 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import scoLogo from '../../assets/sco-logo.png';
 import ScaleModal from '../components/ScaleModal';
+import ProductItem from '../components/ProductItem';
+import PaymentModal from '../components/PaymentModal';
 import { socketService } from '../../services/SocketService';
+import { barcodeService } from '../../services/BarcodeService';
+import ProductService from '../../services/product/ProductService';
+import type { Product, ProductQuantities, LocationState, UserProps } from '../../types';
 
-interface Product {
-  cod_barra: string;
-  description: string;
-  category_id: number;
-  name: string;
-  sku: string;
-  imagen: string;
-  precio: number;
-  peso: number;
-  es_pesable: boolean;
-  purchase_price: number;
-  tax: number;
-  stock: number;
-  stock_min: number;
-  active: boolean;
-}
-
-interface SocketData {
-  data: {
-    orders: Product[];
-  };
-}
-
-interface VerticalProductPageProps {
-  userName?: string;
-}
-
-export default function VerticalProductPage({ userName = "Usuario" }: VerticalProductPageProps) {
+export default function VerticalProductPage({ userName: propUserName = "Usuario",cedula = "" }: UserProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as LocationState;
+  
   const [products, setProducts] = useState<Product[]>([]);
+  const [productQuantities, setProductQuantities] = useState<ProductQuantities>({});
   const [isModalOpen, setIsModalOpen] = useState(true);
   const [modalMessage, setModalMessage] = useState('');
-  const [socketConnected, setSocketConnected] = useState(false);
+  const processedScannedProduct = useRef(false);
   const [scaleWeight, setScaleWeight] = useState<number>(0);
   const [scaleConnected, setScaleConnected] = useState(false);
   const [hasWeightChanged, setHasWeightChanged] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  
+  // Obtener userName y cedula desde sessionStorage o location.state o props
+  const getUsername = () => {
+    const sessionData = sessionStorage.getItem('currentOrder');
+    if (sessionData) {
+      const orderData = JSON.parse(sessionData);
+      return orderData.userName;
+    }
+    return locationState?.userName || propUserName;
+  };
 
+  const getCedula = () => {
+    const sessionData = sessionStorage.getItem('currentOrder');
+    if (sessionData) {
+      const orderData = JSON.parse(sessionData);
+      return orderData.cedula;
+    }
+    return locationState?.cedula || cedula;
+  };
+  
+  const userName = getUsername();
+  const userCedula = getCedula();
 
   useEffect(() => {
-    // Configurar mensaje inicial del modal
-    setModalMessage(`Bienvenido/a ${userName}, por favor ponga los productos en la balanza`);
+    console.log('🔄 VerticalProductPage montado - Cargando productos...');
+
+    // Verificar si viene un producto escaneado desde WelcomeScreen (solo procesar una vez)
+    if (locationState?.fromBarcodeScan && locationState?.scannedProduct && !processedScannedProduct.current) {
+      console.log('📦 Producto recibido desde WelcomeScreen:', locationState.scannedProduct);
+      processedScannedProduct.current = true;
+      handleProductFromWelcome(locationState.scannedProduct);
+    }
+
+    // Intentar obtener datos del sessionStorage primero, luego del location.state
+    const sessionData = sessionStorage.getItem('currentOrder');
+    console.log('📱 SessionStorage data:', sessionData);
+    let orderData = null;
     
-    // Configurar callbacks del servicio
+    if (sessionData) {
+      orderData = JSON.parse(sessionData);
+      console.log('📦 Productos cargados desde sessionStorage:', orderData);
+    } else if (locationState && locationState.products) {
+      orderData = locationState;
+      console.log('📦 Productos recibidos desde location.state:', locationState);
+    } else {
+      console.log('⚠️ No se encontraron productos en sessionStorage ni location.state');
+    }
+    
+    if (orderData && orderData.products) {
+      setProducts(orderData.products);
+      
+      // Inicializar cantidades con 1 para cada producto
+      const initialQuantities: ProductQuantities = {};
+      orderData.products.forEach((product: Product) => {
+        initialQuantities[product.cod_barra] = 1;
+      });
+      setProductQuantities(initialQuantities);
+    }
+    
+    // Configurar mensaje inicial del modal
+    setModalMessage(`Hola ${userName}, ponga los productos en la balanza`);
+  }, [userName, locationState]);
+
+  // useEffect separado para asegurar que el socket siempre se conecte
+  useEffect(() => {
+    console.log('Reconectando socket de balanza...');
+    
+    // Resetear estado de peso para permitir nueva validación
+    setScaleWeight(0);
+    setHasWeightChanged(false);
+    
+    // Configurar callbacks del socket de la balanza
     socketService.setCallbacks({
-      onProductsUpdate: (products) => {
-        setProducts(products);
-      },
       onScaleWeightUpdate: (weight) => {
+        console.log('Peso recibido de la balanza:', weight);
         setScaleWeight(weight);
       },
       onConnectionChange: (connected, socketType) => {
-        if (socketType === 'main') {
-          setSocketConnected(connected);
-        } else if (socketType === 'scale') {
+        if (socketType === 'scale') {
+          console.log('Estado conexión balanza:', connected);
           setScaleConnected(connected);
         }
       },
@@ -66,14 +111,118 @@ export default function VerticalProductPage({ userName = "Usuario" }: VerticalPr
       }
     });
     
-    // Conectar todos los sockets
-    socketService.connectAll();
+    // Conectar socket de la balanza
+    socketService.connectScaleSocket();
     
-    // Cleanup function
+    // Configurar callback para códigos de barras
+    barcodeService.setOnBarcodeScanned(handleBarcodeScanned);
+    
+    // Iniciar escucha de códigos de barras
+    barcodeService.startListening();
+    
+    // Cleanup al desmontar
     return () => {
-      socketService.destroy();
+      console.log('Desconectando socket de balanza...');
+      socketService.disconnectScaleSocket();
+      barcodeService.stopListening();
     };
-  }, [userName]);
+  }, []); // Solo se ejecuta al montar/desmontar
+
+  // Función para manejar producto recibido desde WelcomeScreen
+  const handleProductFromWelcome = (product: Product) => {
+    try {
+      console.log('🎯 Procesando producto desde WelcomeScreen:', product);
+
+      // Verificar si el producto ya está en la lista
+      const existingProduct = products.find(p => p.cod_barra === product.cod_barra);
+
+      if (existingProduct) {
+        // Si ya existe, incrementar cantidad
+        setProductQuantities(prev => ({
+          ...prev,
+          [product.cod_barra]: (prev[product.cod_barra] || 1) + 1
+        }));
+        console.log('✅ Cantidad incrementada para:', product.name);
+      } else {
+        // Si no existe, agregar a la lista
+        setProducts(prev => [...prev, product]);
+        setProductQuantities(prev => ({
+          ...prev,
+          [product.cod_barra]: 1
+        }));
+
+        console.log('✅ Producto agregado desde WelcomeScreen:', product.name);
+
+        // Actualizar sessionStorage
+        setTimeout(() => {
+          const updatedProducts = [...products, product];
+          const orderData = {
+            products: updatedProducts,
+            totalItems: updatedProducts.length,
+            userName: userName,
+            cedula: userCedula,
+            timestamp: new Date().toISOString(),
+            source: 'welcome_barcode'
+          };
+          sessionStorage.setItem('currentOrder', JSON.stringify(orderData));
+          console.log('💾 SessionStorage actualizado desde WelcomeScreen');
+        }, 100);
+      }
+    } catch (error) {
+      console.error('💥 Error al procesar producto desde WelcomeScreen:', error);
+    }
+  };
+
+  // Función para manejar códigos de barras escaneados
+  const handleBarcodeScanned = async (barcode: string) => {
+    console.log('Procesando código de barras:', barcode);
+
+    try {
+      // Buscar producto por código de barras
+      const product: Product | null = await ProductService.getProductByBarcodeApi(barcode);
+
+      if (product) {
+        // Usar callback para acceder al estado actual de products (evita stale closure)
+        setProducts(prevProducts => {
+          const existingProduct = prevProducts.find(p => p.cod_barra === product.cod_barra);
+
+          if (existingProduct) {
+            // Si ya existe, no modificar products
+            console.log('Cantidad incrementada para:', product.name);
+            return prevProducts;
+          } else {
+            // Si no existe, agregar a la lista
+            console.log('Producto agregado:', product.name);
+            const updatedProducts = [...prevProducts, product];
+
+            // Actualizar sessionStorage
+            const orderData = {
+              products: updatedProducts,
+              totalItems: updatedProducts.length,
+              userName: userName,
+              cedula: userCedula,
+              timestamp: new Date().toISOString(),
+              source: 'barcode'
+            };
+            sessionStorage.setItem('currentOrder', JSON.stringify(orderData));
+
+            return updatedProducts;
+          }
+        });
+
+        // Siempre incrementar la cantidad (funciona para nuevo y existente)
+        setProductQuantities(prev => ({
+          ...prev,
+          [product.cod_barra]: (prev[product.cod_barra] || 0) + 1
+        }));
+
+      } else {
+        console.log('Producto no encontrado para código:', barcode);
+      }
+    } catch (error) {
+      console.error('Error al buscar producto por código de barras:', error);
+    }
+  };
 
   // useEffect para validar peso cuando cambien scaleWeight o products
   useEffect(() => {
@@ -81,31 +230,62 @@ export default function VerticalProductPage({ userName = "Usuario" }: VerticalPr
     if (!hasWeightChanged && scaleWeight > 0) {
       setHasWeightChanged(true);
       validateWeight(products, scaleWeight);
-    } else if (hasWeightChanged && scaleWeight > 0) {
+    } else if (hasWeightChanged) {
+      // Validar siempre que hasWeightChanged sea true, incluso si el peso es 0
       validateWeight(products, scaleWeight);
     }
   }, [scaleWeight, products, hasWeightChanged]);
 
   const handlePagar = () => {
-    console.log('Procesando pago...');
+    console.log('Abriendo modal de datos de facturación...');
+    setIsPaymentModalOpen(true);
+  };
+
+  const handlePaymentConfirm = (ruc: string, razonSocial: string) => {
+    console.log('Procesando pago con datos:', { ruc, razonSocial });
     
-    // Calcular total
+    // Calcular total considerando las cantidades
     const totalAmount = products.reduce((total, product) => {
-      return total + product.precio;
+      const quantity = productQuantities[product.cod_barra] || 1;
+      return total + (product.precio * quantity);
     }, 0);
+    
+    // Cerrar modal
+    setIsPaymentModalOpen(false);
     
     // Navegar a página de pago con los datos
     navigate('/payment', { 
       state: { 
         products, 
-        totalAmount 
+        totalAmount,
+        ruc,
+        razonSocial,
+        productQuantities
       } 
     });
+  };
+
+  const handlePaymentCancel = () => {
+    setIsPaymentModalOpen(false);
   };
 
   const handleCancelar = () => {
     console.log('Cancelando orden...');
     setProducts([]);
+    setProductQuantities({});
+    // Limpiar sessionStorage
+    sessionStorage.removeItem('currentOrder');
+    navigate('/welcome');
+  };
+
+
+  const handleDeleteProduct = (productId: string) => {
+    setProducts(prev => prev.filter(product => product.cod_barra !== productId));
+    setProductQuantities(prev => {
+      const newQuantities = { ...prev };
+      delete newQuantities[productId];
+      return newQuantities;
+    });
   };
 
   const validateWeight = (products: Product[], currentWeight?: number) => {
@@ -141,7 +321,7 @@ export default function VerticalProductPage({ userName = "Usuario" }: VerticalPr
   };
 
   return (
-    <div className="min-h-screen bg-primary-400 flex flex-col p-6">
+    <div className="min-h-screen bg-primary-400 flex flex-col p-7">
       <div className="w-full flex flex-col">
         {/* Header */}
         <div className="bg-primary-50 rounded-lg shadow-sm p-8 mb-4">
@@ -154,16 +334,16 @@ export default function VerticalProductPage({ userName = "Usuario" }: VerticalPr
             />
           </div>
           {/* Welcome Message */}
-          <h2 className="text-4xl font-semibold text-primary-700 text-center mb-3">
-            Bienvenido/a {userName}
+          <h2 className="text-4xl font-semibold text-primary-400 text-center mb-3">
+            Hola {userName}
           </h2>
-          <h1 className="text-6xl font-bold text-primary-600 text-center">
+          {/* <h1 className="text-6xl font-bold text-primary-400 text-center">
             Lista de Productos
-          </h1>
+          </h1> */}
         </div>
 
       {/* Products List */}
-      <div className="h-[65vh] space-y-4 mb-6 overflow-y-auto bg-primary-50 p-6 rounded-lg shadow-inner">
+      <div className="h-[63vh] mb-6 overflow-y-auto bg-primary-50 rounded-lg shadow-inner">
         {products.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -173,81 +353,74 @@ export default function VerticalProductPage({ userName = "Usuario" }: VerticalPr
             </div>
           </div>
         ) : (
-          products.map((product, index) => (
-            <div key={product.cod_barra || index} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-              <div className="flex items-start space-x-6">
-                {/* Product Image */}
-                <div className="w-28 h-28 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                  {product.imagen ? (
-                    <img
-                      src={product.imagen}
-                      alt={product.name}
-                      className="w-full h-full object-cover rounded-lg"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
-                      }}
-                    />
-                  ) : null}
-                  <div className="text-gray-400 text-xs text-center hidden">
-                    Sin imagen
-                  </div>
-                </div>
-
-                {/* Product Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-semibold text-gray-900 text-xl truncate pr-2">
-                      {product.name}
-                    </h3>
-                    <span className="text-2xl font-bold text-primary-600 whitespace-nowrap">
-                      ${product.precio.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <p className="text-gray-600 text-base mb-3 line-clamp-2">
-                    {product.description}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3 text-sm text-gray-500">
-                    <div>
-                      <span className="font-medium">Código:</span> {product.cod_barra}
-                    </div>
-                    <div>
-                      <span className="font-medium">Categoría:</span> {product.category_id}
-                    </div>
-                  </div>
-
-                  {product.es_pesable && (
-                    <div className="mt-3">
-                      <span className="inline-block bg-orange-100 text-orange-800 text-sm px-3 py-2 rounded-full">
-                        Producto Pesable
-                      </span>
-                    </div>
-                  )}
-                </div>
+          <div className="p-6">
+            {/* Headers */}
+            <div className="flex items-center gap-8 mb-6 px-6">
+              <div className="flex-shrink-0 w-24"></div> {/* Space for image */}
+              <div className="flex-1 min-w-0">
+                <div className="text-lg font-bold text-gray-700 uppercase tracking-wide">Producto</div>
               </div>
+              <div className="text-center flex-shrink-0 w-28">
+                <div className="text-lg font-bold text-gray-700 uppercase tracking-wide">Cantidad</div>
+              </div>
+              <div className="text-center flex-shrink-0 w-32">
+                <div className="text-lg font-bold text-gray-700 uppercase tracking-wide">Precio</div>
+              </div>
+              <div className="text-center flex-shrink-0 w-32">
+                <div className="text-lg font-bold text-gray-700 uppercase tracking-wide">Sub Total</div>
+              </div>
+              <div className="flex-shrink-0 w-14"></div> {/* Space for delete button */}
             </div>
-          ))
+            
+            {/* Products */}
+            <div className="space-y-4">
+              {products.map((product, index) => (
+                <ProductItem 
+                  key={product.cod_barra || index}
+                  product={product}
+                  index={index}
+                  quantity={productQuantities[product.cod_barra] || 1}
+                  onDelete={handleDeleteProduct}
+                />
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
+      {/* Total General */}
+      <div className="bg-primary-50 rounded-lg shadow-sm p-11 mb-4 mt-1">
+        <div className="flex justify-end">
+          <div className="flex items-center gap-4">
+            <div className="text-5xl font-semibold text-gray-700">
+               Total a Pagar:
+            </div>
+            <div className="text-5xl font-bold text-primary-400">
+              ₲{products.reduce((total, product) => {
+                const quantity = productQuantities[product.cod_barra] || 1;
+                return total + (product.precio * quantity);
+              }, 0).toLocaleString('es-PY')}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Action Buttons */}
-      <div className="flex justify-center gap-8 mt-auto">
+      <div className="flex justify-center gap-6 mt-3">
         <button
           onClick={handlePagar}
           disabled={products.length === 0}
-          className="bg-primary-600 text-white py-6 px-20 rounded-lg text-2xl font-semibold min-w-64
-                     hover:bg-primary-700 transition-colors duration-200 
-                     disabled:bg-primary-300 disabled:cursor-not-allowed disabled:opacity-60
-                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+          className="w-full bg-primary-50 text-black py-11 rounded-lg text-4xl font-semibold min-w-64
+                    
+                     
+                     "
         >
-          Pagar
+          Pagar  
         </button>
         
         <button
           onClick={handleCancelar}
-          className="bg-secondary-600 text-black py-6 px-20 rounded-lg text-2xl font-semibold min-w-64
+          className="w-full bg-primary-50 text-black py-6 rounded-lg text-4xl font-semibold min-w-64
                      hover:bg-secondary-700 transition-colors duration-200
                      focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:ring-offset-2"
         >
@@ -261,6 +434,19 @@ export default function VerticalProductPage({ userName = "Usuario" }: VerticalPr
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         message={modalMessage}
+        userName={userName}
+      />
+
+      {/* Modal de Pago */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={handlePaymentCancel}
+        onConfirm={handlePaymentConfirm}
+        totalAmount={products.reduce((total, product) => {
+          const quantity = productQuantities[product.cod_barra] || 1;
+          return total + (product.precio * quantity);
+        }, 0)}
+        cedula={userCedula}
         userName={userName}
       />
     </div>

@@ -1,79 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ProductForm from './ProductForm';
+import ProductTable from './ProductTable';
 
 interface Product {
-  id: string;
-  name: string;
+  id: number;
+  barcode?: string;
+  name?: string;
   description: string;
-  price: number;
-  category: string;
+  price: string;
+  category_id: number;
+  image?: string;
+  weight?: number;
+  weighable: boolean;
+  unit?: string;
+  created_at: string;
+  updated_at: string;
+  sku?: string;
+  purchase_price?: string;
+  tax: string;
   stock: number;
-  status: 'active' | 'inactive';
-  createdAt: string;
+  stock_min: number;
+  active: boolean;
+  category: {
+    id: number;
+    name: string;
+    image?: string;
+    created_at: string;
+    updated_at: string;
+  };
+  image_url?: string;
+}
+
+interface PaginationData {
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+  next_page_url: string | null;
+  prev_page_url: string | null;
 }
 
 interface ProductListProps {
   products?: Product[];
   onEdit?: (product: Product) => void;
-  onDelete?: (productId: string) => void;
+  onDelete?: (productId: number) => void;
   onAdd?: () => void;
 }
 
-const defaultProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Laptop Dell XPS 13',
-    description: 'Laptop ultrabook con procesador Intel i7 y 16GB RAM',
-    price: 1299.99,
-    category: 'Electrónicos',
-    stock: 25,
-    status: 'active',
-    createdAt: '2024-01-15'
-  },
-  {
-    id: '2',
-    name: 'iPhone 15 Pro',
-    description: 'Smartphone Apple con cámara profesional',
-    price: 1099.00,
-    category: 'Electrónicos',
-    stock: 42,
-    status: 'active',
-    createdAt: '2024-02-10'
-  },
-  {
-    id: '3',
-    name: 'Escritorio de Madera',
-    description: 'Mesa de trabajo ergonómica en madera maciza',
-    price: 450.50,
-    category: 'Muebles',
-    stock: 8,
-    status: 'inactive',
-    createdAt: '2024-01-28'
-  },
-  {
-    id: '4',
-    name: 'Monitor 4K Samsung',
-    description: 'Monitor profesional 27" con resolución 4K',
-    price: 799.99,
-    category: 'Electrónicos',
-    stock: 15,
-    status: 'active',
-    createdAt: '2024-03-05'
-  },
-  {
-    id: '5',
-    name: 'Silla Ergonómica',
-    description: 'Silla de oficina con soporte lumbar ajustable',
-    price: 320.00,
-    category: 'Muebles',
-    stock: 0,
-    status: 'active',
-    createdAt: '2024-02-20'
-  }
-];
-
 export default function ProductList({
-  products = defaultProducts,
   onEdit,
   onDelete,
   onAdd
@@ -83,20 +57,76 @@ export default function ProductList({
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [productList, setProductList] = useState<Product[]>(products);
+  const [productList, setProductList] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationData, setPaginationData] = useState<PaginationData | null>(null);
+
+  // Función para cargar productos desde la API
+  const fetchProducts = async (page: number = 1) => {
+    setIsLoading(true);
+    try {
+      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api`;
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${baseUrl}/product?page=${page}`, {
+        headers
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setProductList(result.data);
+          const pagination = {
+            current_page: result.current_page,
+            per_page: result.per_page,
+            total: result.total,
+            last_page: result.last_page,
+            next_page_url: result.next_page_url,
+            prev_page_url: result.prev_page_url
+          };
+          setPaginationData(pagination);
+        }
+      } else {
+        console.error('Error fetching products:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Cargar productos al montar el componente o cambiar de página
+  useEffect(() => {
+    fetchProducts(currentPage);
+  }, [currentPage]);
 
   // Obtener categorías únicas
-  const categories = Array.from(new Set(productList.map(product => product.category)));
+  const categories = Array.from(new Set(productList.map(product => product.category.name)));
 
+  // Los productos ya vienen paginados del backend, pero mantenemos filtros locales
   const filteredProducts = productList.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
-    const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+    const matchesSearch = searchTerm === '' || 
+                         (product.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (product.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (product.category?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? product.active : !product.active);
+    const matchesCategory = categoryFilter === 'all' || product.category.name === categoryFilter;
     
     return matchesSearch && matchesStatus && matchesCategory;
   });
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(product);
@@ -104,7 +134,7 @@ export default function ProductList({
     onEdit?.(product);
   };
 
-  const handleDelete = (productId: string) => {
+  const handleDelete = (productId: number) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este producto?')) {
       setProductList(prev => prev.filter(product => product.id !== productId));
       onDelete?.(productId);
@@ -117,23 +147,9 @@ export default function ProductList({
     onAdd?.();
   };
 
-  const handleSaveProduct = (productData: Omit<Product, 'id' | 'createdAt'>) => {
-    if (selectedProduct) {
-      // Editar producto existente
-      setProductList(prev => prev.map(product => 
-        product.id === selectedProduct.id 
-          ? { ...product, ...productData }
-          : product
-      ));
-    } else {
-      // Crear nuevo producto
-      const newProduct: Product = {
-        id: (productList.length + 1).toString(),
-        ...productData,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setProductList(prev => [...prev, newProduct]);
-    }
+  const handleSaveProduct = async () => {
+    // Recargar la lista de productos desde la API
+    await fetchProducts(currentPage);
     setIsFormVisible(false);
     setSelectedProduct(null);
   };
@@ -143,54 +159,6 @@ export default function ProductList({
     setSelectedProduct(null);
   };
 
-  const getStatusBadge = (status: Product['status']) => {
-    return status === 'active' ? (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-        Activo
-      </span>
-    ) : (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        Inactivo
-      </span>
-    );
-  };
-
-  const getCategoryBadge = (category: string) => {
-    const categoryColors: { [key: string]: string } = {
-      'Electrónicos': 'bg-blue-100 text-blue-800',
-      'Muebles': 'bg-yellow-100 text-yellow-800',
-      'Ropa': 'bg-purple-100 text-purple-800',
-      'Deportes': 'bg-green-100 text-green-800',
-    };
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryColors[category] || 'bg-gray-100 text-gray-800'}`}>
-        {category}
-      </span>
-    );
-  };
-
-  const getStockBadge = (stock: number) => {
-    if (stock === 0) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-          Sin Stock
-        </span>
-      );
-    } else if (stock <= 10) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-          Stock Bajo
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          En Stock
-        </span>
-      );
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -253,110 +221,116 @@ export default function ProductList({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Producto
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Categoría
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Precio
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stock
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-lg bg-primary-100 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                        <div className="text-sm text-gray-500 line-clamp-2">{product.description}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getCategoryBadge(product.category)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                    ${product.price.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-900">{product.stock}</span>
-                      {getStockBadge(product.stock)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(product.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="text-primary-600 hover:text-primary-900 inline-flex items-center px-3 py-1 rounded-md hover:bg-primary-50 transition-colors"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="text-red-600 hover:text-red-900 inline-flex items-center px-3 py-1 rounded-md hover:bg-red-50 transition-colors"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <ProductTable 
+        products={filteredProducts}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        isLoading={isLoading}
+      />
 
-        {/* Empty state */}
-        {filteredProducts.length === 0 && (
-          <div className="text-center py-12">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron productos</h3>
-            <p className="mt-1 text-sm text-gray-500">Intenta ajustar los filtros de búsqueda.</p>
+      {/* Pagination Controls */}
+      {paginationData && paginationData.last_page > 1 && (
+        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-lg">
+          <div className="flex-1 flex justify-between sm:hidden">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === paginationData.last_page}
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
+            </button>
           </div>
-        )}
-      </div>
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                Mostrando{' '}
+                <span className="font-medium">
+                  {(paginationData.current_page - 1) * paginationData.per_page + 1}
+                </span>{' '}
+                a{' '}
+                <span className="font-medium">
+                  {Math.min(paginationData.current_page * paginationData.per_page, paginationData.total)}
+                </span>{' '}
+                de{' '}
+                <span className="font-medium">{paginationData.total}</span> productos
+              </p>
+            </div>
+            <div>
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="sr-only">Anterior</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
+                {/* Páginas */}
+                {Array.from({ length: Math.min(5, paginationData.last_page) }, (_, i) => {
+                  let pageNumber;
+                  if (paginationData.last_page <= 5) {
+                    pageNumber = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNumber = i + 1;
+                  } else if (currentPage >= paginationData.last_page - 2) {
+                    pageNumber = paginationData.last_page - 4 + i;
+                  } else {
+                    pageNumber = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNumber}
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        currentPage === pageNumber
+                          ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  );
+                })}
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === paginationData.last_page}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="sr-only">Siguiente</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Results count */}
       <div className="text-sm text-gray-500">
-        Mostrando {filteredProducts.length} de {productList.length} productos
+        {paginationData ? (
+          `Mostrando ${filteredProducts.length} productos de la página ${paginationData.current_page} (${paginationData.total} total)`
+        ) : (
+          `Mostrando ${filteredProducts.length} productos`
+        )}
       </div>
 
       {/* Product Form Modal */}
       <ProductForm
-        product={selectedProduct}
+        product={selectedProduct as any}
         isVisible={isFormVisible}
         onSave={handleSaveProduct}
         onCancel={handleCancelForm}

@@ -1,35 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import AppConfig from '../config/AppConfig';
-
-interface Product {
-  cod_barra: string;
-  description: string;
-  category_id: number;
-  name: string;
-  sku: string;
-  imagen: string;
-  precio: number;
-  peso: number;
-  es_pesable: boolean;
-  purchase_price: number;
-  tax: number;
-  stock: number;
-  stock_min: number;
-  active: boolean;
-}
-
-interface SocketData {
-  data: {
-    orders: Product[];
-  };
-}
-
-interface SocketCallbacks {
-  onProductsUpdate?: (products: Product[]) => void;
-  onScaleWeightUpdate?: (weight: number) => void;
-  onConnectionChange?: (connected: boolean, socketType: 'main' | 'scale') => void;
-  onError?: (error: any, socketType: 'main' | 'scale') => void;
-}
+import type { SocketData, SocketCallbacks } from '../types';
 
 class SocketService {
   private mainSocket: Socket | null = null;
@@ -45,24 +15,27 @@ class SocketService {
   connectMainSocket() {
     try {
       if (this.mainSocket?.connected) {
-        console.log('Socket principal ya está conectado');
+        console.log('🟢 Socket principal ya está conectado');
         return;
       }
 
-      this.mainSocket = io('http://10.6.1.113:3000', {
-        withCredentials: true,
+      const mainSocketUrl = import.meta.env.VITE_SOCKET_MAIN_URL || 'http://localhost:3000';
+      console.log('🔄 Intentando conectar socket principal a:', mainSocketUrl);
+      
+      this.mainSocket = io(mainSocketUrl, {
+        withCredentials: false,
         transports: ['polling'],
       });
 
       this.mainSocket.on('connect', () => {
-        console.log('Conectado a Socket.IO principal');
+        console.log('🟢 CONECTADO a Socket.IO principal');
         this.callbacks.onConnectionChange?.(true, 'main');
       });
 
       this.mainSocket.on('product-update', (data: SocketData) => {
         console.log('Datos de productos recibidos:', data);
         if (data && data.data.orders) {
-          this.callbacks.onProductsUpdate?.(data.data.orders);
+          this.callbacks.onProductsUpdate?.(data);
         }
       });
 
@@ -91,7 +64,8 @@ class SocketService {
         return;
       }
 
-      this.scaleSocket = new WebSocket('ws://10.6.1.113:8080');
+      const scaleSocketUrl = import.meta.env.VITE_SOCKET_SCALE_URL || 'ws://localhost:8080';
+      this.scaleSocket = new WebSocket(scaleSocketUrl);
 
       this.scaleSocket.onopen = () => {
         console.log('Conectado al WebSocket de Balanza');

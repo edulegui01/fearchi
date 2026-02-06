@@ -68,6 +68,13 @@ export class ApiError extends Error {
   }
 
   /**
+   * Determina si el error es de timeout
+   */
+  get isTimeoutError(): boolean {
+    return this.status === 408;
+  }
+
+  /**
    * Determina si el error es de autenticación
    */
   get isAuthError(): boolean {
@@ -92,33 +99,16 @@ export class ApiError extends Error {
    * Obtiene un mensaje amigable para el usuario
    */
   getUserFriendlyMessage(): string {
-    switch (this.status) {
-      case 400:
-        return 'La solicitud contiene datos inválidos';
-      case 401:
-        return 'Necesitas iniciar sesión para continuar';
-      case 403:
-        return 'No tienes permisos para realizar esta acción';
-      case 404:
-        return 'El recurso solicitado no fue encontrado';
-      case 409:
-        return 'Ya existe un recurso con esos datos';
-      case 422:
-        return 'Los datos proporcionados no son válidos';
-      case 429:
-        return 'Has excedido el límite de solicitudes. Intenta más tarde';
-      case 500:
-        return 'Error interno del servidor. Intenta más tarde';
-      case 502:
-        return 'Servicio temporalmente no disponible';
-      case 503:
-        return 'Servicio en mantenimiento. Intenta más tarde';
-      default:
-        if (this.isNetworkError) {
-          return 'Error de conexión. Verifica tu internet';
-        }
-        return this.message || 'Ha ocurrido un error inesperado';
+    // Errores de conexión/timeout (la API no puede responder)
+    if (this.status === 0) {
+      return 'No se pudo conectar al servidor. Verifica tu conexión.';
     }
+    if (this.status === 408) {
+      return 'La conexión tardó demasiado. Intenta nuevamente.';
+    }
+
+    // Para el resto, usar el mensaje que devuelve la API
+    return this.message || 'Ha ocurrido un error inesperado';
   }
 
   /**

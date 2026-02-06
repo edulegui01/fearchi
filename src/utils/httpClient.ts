@@ -1,4 +1,3 @@
-import AppConfig from '../config/AppConfig';
 import { ApiError } from './ApiError';
 
 /**
@@ -6,7 +5,7 @@ import { ApiError } from './ApiError';
  * Maneja automáticamente headers, autenticación y errores
  */
 export class HttpClient {
-  private static timeout = AppConfig.API.TIMEOUT;
+  private static timeout = Number(import.meta.env.VITE_API_TIMEOUT) || 10000;
 
   /**
    * Realiza una petición HTTP con configuración automática
@@ -19,8 +18,18 @@ export class HttpClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
+      const defaultHeaders: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        defaultHeaders.Authorization = `Bearer ${token}`;
+      }
+
       const headers: HeadersInit = {
-        ...AppConfig.getDefaultHeaders(),
+        ...defaultHeaders,
         ...options.headers,
       };
 
@@ -41,7 +50,12 @@ export class HttpClient {
       clearTimeout(timeoutId);
 
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new ApiError(408, 'Request timeout', 'Request Timeout', url);
+        throw new ApiError(408, 'La conexión tardó demasiado. Verifica que el servidor esté disponible.', 'Request Timeout', url);
+      }
+
+      // Error de red (servidor apagado, sin conexión, etc.)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new ApiError(0, 'No se pudo conectar al servidor. Verifica tu conexión o que el servidor esté encendido.', 'Network Error', url);
       }
 
       throw error;

@@ -1,4 +1,4 @@
-import imagenBalanza from '../../assets/imagenBalanza.png';
+import caritaPosible from '../../assets/carita_posible.png';
 
 interface ScaleModalProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ export default function ScaleModal({ isOpen, onClose, message, userName }: Scale
         {/* Imagen de la balanza */}
         <div className="flex justify-center mb-8">
           <img 
-            src={imagenBalanza} 
+            src={caritaPosible} 
             alt="Balanza"
             className="w-96 h-96 object-contain"
           />
@@ -29,17 +29,7 @@ export default function ScaleModal({ isOpen, onClose, message, userName }: Scale
           </p>
         </div>
 
-        {/* Botón para cerrar - Solo mostrar si no es mensaje de error */}
-        {!message.includes("no coinciden") && (
-          <div className="flex justify-center">
-            <button
-              onClick={onClose}
-              className="bg-primary-600 text-white px-8 py-3 text-lg rounded-lg hover:bg-primary-700 transition-colors duration-200"
-            >
-              Continuar
-            </button>
-          </div>
-        )}
+        
       </div>
     </div>
   );
