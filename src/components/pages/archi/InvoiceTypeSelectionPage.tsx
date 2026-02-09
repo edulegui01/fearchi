@@ -145,6 +145,7 @@ export default function InvoiceTypeSelectionPage({
       invoiceType: "sin_nombre",
       razonSocial,
       ruc: documento,
+      facturaNro: invoiceResponse.ticket,
     };
 
     sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));
@@ -256,7 +257,7 @@ export default function InvoiceTypeSelectionPage({
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
       // Hacer petición POST para crear la factura
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/create-invoice`, {
+      const invoiceResponse = await HttpClient.post<VentasAut>(`${baseUrl}/pos/ventas-aut/create-invoice`, {
         caja,
         operacion: 6,
         documento: fullRuc,
@@ -268,6 +269,7 @@ export default function InvoiceTypeSelectionPage({
         razonSocial: nombreCliente || "",
         ruc: fullRuc,
         clientData: clientData,
+        facturaNro: invoiceResponse.ticket,
       };
 
       sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));
@@ -341,6 +343,7 @@ export default function InvoiceTypeSelectionPage({
         razonSocial: invoiceResponse.nombre_cliente || razonSocial.trim(),
         ruc: invoiceResponse.documento || pendingFullRuc,
         clientData: invoiceResponse,
+        facturaNro: invoiceResponse.ticket,
       };
 
       sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));

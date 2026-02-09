@@ -62,6 +62,8 @@ export default function PaymentSelectionPage({
   // Obtener datos del state (productos, total, etc.)
   const stateData = location.state || {};
   const totalAmount = stateData.totalAmount || 0;
+  const products = stateData.products || [];
+  const productQuantities = stateData.productQuantities || {};
 
   console.log("💳 PaymentSelectionPage - location.state:", location.state);
   console.log("💳 PaymentSelectionPage - totalAmount:", totalAmount);
@@ -101,12 +103,22 @@ export default function PaymentSelectionPage({
 
       const caja = getCaja();
 
+      const detalles = products.map((product: { cod_barra: string; precio: number }) => {
+        const cantidad = productQuantities[product.cod_barra] || 1;
+        return {
+          codigoBarras: product.cod_barra,
+          cantidad,
+          totalPrecio: product.precio * cantidad,
+        };
+      });
+
       const response = await HttpClient.post<PaymentResponse>(
         `${baseUrl}${endpoint}`,
         {
           caja,
-          facturaNro: 1,
+          facturaNro,
           monto: totalAmount,
+          detalles,
         },
       );
 
