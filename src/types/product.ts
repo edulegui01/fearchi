@@ -73,6 +73,7 @@ export interface ProductQuantities {
 
 // Tipo para la respuesta del endpoint de scan
 export interface ScannedProduct {
+  codigo: string;
   codigo_barras: string;
   precio: number;
   total: number;

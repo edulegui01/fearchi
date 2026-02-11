@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const INACTIVITY_TIMEOUT = 60000; // 60 segundos
+const INACTIVITY_TIMEOUT = parseInt(import.meta.env.VITE_INACTIVITY_TIMEOUT || "60000", 10);
 const EXCLUDED_PATHS = ["/menu", "/login", "/"];
 
 export function InactivityProvider({ children }: { children: React.ReactNode }) {

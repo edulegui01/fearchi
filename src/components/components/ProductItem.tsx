@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ProductItemProps } from '../../types';
 
 export default function ProductItem({
@@ -8,6 +9,7 @@ export default function ProductItem({
   onIncrement,
   onDecrement
 }: ProductItemProps) {
+  const [isIncrementing, setIsIncrementing] = useState(false);
   const total = product.precio * quantity;
   console.log('Product name:', product.name, 'Descripcion:', product.descripcion);
 
@@ -15,8 +17,14 @@ export default function ProductItem({
     onDelete?.(product.cod_barra);
   };
 
-  const handleIncrement = () => {
-    onIncrement?.(product.cod_barra);
+  const handleIncrement = async () => {
+    if (isIncrementing) return;
+    setIsIncrementing(true);
+    try {
+      await onIncrement?.(product.cod_barra);
+    } finally {
+      setIsIncrementing(false);
+    }
   };
 
   const handleDecrement = () => {
@@ -61,11 +69,6 @@ export default function ProductItem({
             >
               {product.descripcion}
             </h3>
-            {product.es_pesable && (
-              <span className="inline-block bg-orange-100 text-orange-800 text-[8px] md:text-[10px] lg:text-xs xl:text-sm px-1 md:px-2 lg:px-3 py-0.5 xl:py-1 rounded-full whitespace-nowrap font-medium">
-                Pesable
-              </span>
-            )}
           </div>
           <p className="text-gray-600 text-[10px] md:text-xs lg:text-sm xl:text-lg line-clamp-1 xl:line-clamp-2">{product.name || ''}</p>
         </div>
@@ -82,9 +85,10 @@ export default function ProductItem({
           <div className="text-sm md:text-base lg:text-xl xl:text-3xl font-bold text-gray-600 bg-gray-50 rounded md:rounded-lg py-0.5 md:py-1 xl:py-2 w-6 md:w-8 lg:w-10 xl:w-16 text-center">{quantity}</div>
           <button
             onClick={handleIncrement}
-            className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 xl:w-10 xl:h-10 bg-primary-500 hover:bg-primary-600 text-white rounded md:rounded-lg text-xs md:text-sm lg:text-base xl:text-2xl font-bold transition-colors duration-200 flex items-center justify-center"
+            disabled={isIncrementing}
+            className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 xl:w-10 xl:h-10 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded md:rounded-lg text-xs md:text-sm lg:text-base xl:text-2xl font-bold transition-colors duration-200 flex items-center justify-center"
           >
-            +
+            {isIncrementing ? "..." : "+"}
           </button>
         </div>
 

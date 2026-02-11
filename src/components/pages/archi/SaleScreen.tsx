@@ -52,6 +52,14 @@ interface InsertProductsError {
   cod_barra?: string; // Presente cuando es error de producto específico
 }
 
+// Tipo para respuesta del endpoint /scanning-peso
+interface ScanningPesoResponse {
+  scanning: string;
+  controlPeso: number | null;
+  toleranciaIndividual: number | null;
+  peso_gramos: number;
+}
+
 export default function SaleScreen({
   userName: propUserName = "Usuario",
   cedula = "",
@@ -83,10 +91,26 @@ export default function SaleScreen({
   const productsRef = useRef<Product[]>([]);
   const productQuantitiesRef = useRef<ProductQuantities>({});
 
+  // Estado y ref para bloquear escaneo durante validación de peso per-scan
+  // El ref es necesario porque los handlers de barcodeService capturan closures stale
+  const [isWeightValidationPending, setIsWeightValidationPending] = useState(false);
+  const isWeightValidationPendingRef = useRef(false);
+  const showWeightModalRef = useRef(false);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCancelRef = useRef<number>(0);
+  const pendingWeightProductRef = useRef<{ cod_barra: string; codigo: string } | null>(null);
+  const isCallingWeightEndpointRef = useRef(false);
+
   // Estados para modo de inserción de productos
   const [productInsertError, setProductInsertError] = useState<string | null>(null);
   const [errorProductBarcode, setErrorProductBarcode] = useState<string | null>(null);
   const [isInsertingProducts, setIsInsertingProducts] = useState(false);
+
+  // Helper para actualizar state + ref de validación de peso
+  const setWeightValidationPending = (value: boolean) => {
+    isWeightValidationPendingRef.current = value;
+    setIsWeightValidationPending(value);
+  };
 
   // Modo de operación: true = usar endpoint insertar-productos, false = lógica actual
   const useInsertProductsMode = import.meta.env.VITE_USE_INSERT_PRODUCTS_MODE === "true";
@@ -99,6 +123,62 @@ export default function SaleScreen({
   useEffect(() => {
     productQuantitiesRef.current = productQuantities;
   }, [productQuantities]);
+
+  useEffect(() => {
+    showWeightModalRef.current = showWeightModal;
+  }, [showWeightModal]);
+
+  // useEffect para monitoreo continuo de peso
+  // Se ejecuta cada vez que cambian products o productQuantities
+  useEffect(() => {
+    let totalWeightKg = 0;
+    for (const product of products) {
+      const qty = productQuantities[product.cod_barra] || 1;
+      totalWeightKg += (product.peso || 0) * qty;
+    }
+    totalWeightKg = totalWeightKg / 1000; // gramos a kg
+
+    expectedWeightRef.current = totalWeightKg;
+    setExpectedWeight(totalWeightKg);
+
+    if (totalWeightKg > 0) {
+      // Calcular tolerancia
+      const percentage = parseFloat(import.meta.env.VITE_TOLERANCE_PERCENTAGE) || 0.05;
+      const minKg = parseFloat(import.meta.env.VITE_TOLERANCE_MIN_KG) || 0.03;
+      const maxKg = parseFloat(import.meta.env.VITE_TOLERANCE_MAX_KG) || 0.15;
+      const calculated = totalWeightKg * percentage;
+      const tol = Math.max(minKg, Math.min(calculated, maxKg));
+      toleranceRef.current = tol;
+      setTolerance(tol);
+
+      console.log(`📊 Peso esperado recalculado: ${totalWeightKg.toFixed(3)}kg, Tolerancia: ${(tol * 1000).toFixed(0)}g`);
+
+      // Conectar balanza si no está conectada
+      if (
+        !scaleSocketRef.current ||
+        scaleSocketRef.current.readyState === WebSocket.CLOSED ||
+        scaleSocketRef.current.readyState === WebSocket.CLOSING
+      ) {
+        connectValidationScale();
+      }
+    } else {
+      // No hay productos con peso conocido
+      // Si hay un producto pendiente de determinación de peso, NO desconectar la balanza
+      if (pendingWeightProductRef.current) {
+        console.log("⚖️ Producto pendiente de determinación de peso, manteniendo balanza conectada");
+        return;
+      }
+      // Desconectar balanza y cerrar modal
+      disconnectValidationScale();
+      if (showWeightModalRef.current) {
+        setShowWeightModal(false);
+        setWeightValidationStatus("idle");
+        setWeightError("");
+        setCurrentWeight(0);
+        setWeightValidationPending(false);
+      }
+    }
+  }, [products, productQuantities]);
 
   // Obtener datos de facturación desde location.state o sessionStorage
   const getInvoiceData = () => {
@@ -203,6 +283,11 @@ export default function SaleScreen({
       barcodeService.stopListening();
       // Desconectar balanza de validación si está conectada
       disconnectValidationScale();
+      // Limpiar timeout de success
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
     };
   }, [useInsertProductsMode]);
 
@@ -295,6 +380,12 @@ export default function SaleScreen({
       return;
     }
 
+    // Bloquear escaneo mientras hay validación de peso pendiente (usa ref para evitar closure stale)
+    if (isWeightValidationPendingRef.current) {
+      console.log("⚠️ Validación de peso pendiente, ignorando escaneo");
+      return;
+    }
+
     console.log("✅ SaleScreen procesando código de barras:", barcode);
 
     try {
@@ -360,6 +451,25 @@ export default function SaleScreen({
           ...prev,
           [mappedProduct.cod_barra]: (prev[mappedProduct.cod_barra] || 0) + 1,
         }));
+
+        // Detectar peso_gramos vacío en producto nuevo → determinar peso con balanza
+        const isNewProduct = !productsRef.current.some(p => p.cod_barra === mappedProduct.cod_barra);
+        if (isNewProduct && (product.peso_gramos === "" || product.peso_gramos === undefined || product.peso_gramos === null)) {
+          console.log("⚖️ Producto con peso desconocido, iniciando determinación de peso:", product.codigo);
+          pendingWeightProductRef.current = { cod_barra: mappedProduct.cod_barra, codigo: product.codigo };
+          setShowWeightModal(true);
+          setWeightValidationStatus("waiting");
+          setWeightError("");
+          setWeightValidationPending(true);
+          // Asegurar que la balanza esté conectada
+          if (
+            !scaleSocketRef.current ||
+            scaleSocketRef.current.readyState === WebSocket.CLOSED ||
+            scaleSocketRef.current.readyState === WebSocket.CLOSING
+          ) {
+            connectValidationScale();
+          }
+        }
       }
       hideLoading();
     } catch (error) {
@@ -407,6 +517,12 @@ export default function SaleScreen({
   const handleBarcodeScannedSimple = async (barcode: string) => {
     if (!isActive) {
       console.log("⚠️ SaleScreen no está activo, ignorando escaneo");
+      return;
+    }
+
+    // Bloquear escaneo mientras hay validación de peso pendiente (usa ref para evitar closure stale)
+    if (isWeightValidationPendingRef.current) {
+      console.log("⚠️ Validación de peso pendiente, ignorando escaneo");
       return;
     }
 
@@ -484,6 +600,25 @@ export default function SaleScreen({
           [productBarcode]: currentQty + 1,
         };
       });
+
+      // Detectar peso_gramos vacío en producto nuevo → determinar peso con balanza
+      const isNewProduct = !productsRef.current.some(p => p.cod_barra === productBarcode);
+      if (isNewProduct && (!response.peso_gramos || response.peso_gramos === "")) {
+        console.log("⚖️ Producto con peso desconocido, iniciando determinación de peso:", response.codigo);
+        pendingWeightProductRef.current = { cod_barra: productBarcode, codigo: response.codigo };
+        setShowWeightModal(true);
+        setWeightValidationStatus("waiting");
+        setWeightError("");
+        setWeightValidationPending(true);
+        // Asegurar que la balanza esté conectada
+        if (
+          !scaleSocketRef.current ||
+          scaleSocketRef.current.readyState === WebSocket.CLOSED ||
+          scaleSocketRef.current.readyState === WebSocket.CLOSING
+        ) {
+          connectValidationScale();
+        }
+      }
 
       hideLoading();
     } catch (error) {
@@ -619,8 +754,8 @@ export default function SaleScreen({
       hideLoading();
       setIsInsertingProducts(false);
 
-      // Continuar con la validación de peso
-      handlePagar();
+      // Ir directo al pago (validación de peso se hace per-scan)
+      proceedToPayment();
     } catch (error) {
       console.error("❌ Error en handlePagarWithInsert:", error);
       hideLoading();
@@ -629,31 +764,7 @@ export default function SaleScreen({
     }
   };
 
-  // Calcular peso esperado total en kg
-  const calculateExpectedWeight = useCallback((): number => {
-    return products.reduce((total, product) => {
-      const quantity = productQuantities[product.cod_barra] || 1;
-      const pesoGramos = product.peso || 0;
-      return total + (pesoGramos * quantity);
-    }, 0) / 1000; // Convertir gramos a kg
-  }, [products, productQuantities]);
-
-  // Calcular tolerancia híbrida: clamp(peso × porcentaje, min, max)
-  // Valores configurables desde .env
-  const calculateHybridTolerance = (expectedWeightKg: number): number => {
-    const percentage = parseFloat(import.meta.env.VITE_TOLERANCE_PERCENTAGE) || 0.05;
-    const minKg = parseFloat(import.meta.env.VITE_TOLERANCE_MIN_KG) || 0.03;
-    const maxKg = parseFloat(import.meta.env.VITE_TOLERANCE_MAX_KG) || 0.15;
-
-    const calculated = expectedWeightKg * percentage;
-    const clamped = Math.max(minKg, Math.min(calculated, maxKg));
-
-    console.log(`📊 Tolerancia híbrida - Peso esperado: ${expectedWeightKg}kg, Calculada: ${(calculated * 1000).toFixed(0)}g, Final: ${(clamped * 1000).toFixed(0)}g`);
-
-    return clamped;
-  };
-
-  // Conectar al WebSocket de la balanza para validación
+  // Conectar al WebSocket de la balanza para monitoreo continuo
   const connectValidationScale = useCallback(() => {
     // Cerrar conexión existente si hay
     if (scaleSocketRef.current) {
@@ -661,28 +772,138 @@ export default function SaleScreen({
     }
 
     const scaleUrl = import.meta.env.VITE_SOCKET_VALIDATION_SCALE_URL || "ws://localhost:3001";
-    console.log("🔌 Conectando a balanza de validación:", scaleUrl);
+    console.log("🔌 Conectando a balanza de validación (monitoreo continuo):", scaleUrl);
 
     const socket = new WebSocket(scaleUrl);
     scaleSocketRef.current = socket;
 
     socket.onopen = () => {
-      console.log("✅ Conectado a balanza de validación");
-      setWeightValidationStatus("waiting");
+      console.log("✅ Conectado a balanza de validación (monitoreo continuo)");
     };
 
     socket.onmessage = (event) => {
       try {
         const data: ScaleData = JSON.parse(event.data);
-        console.log("⚖️ Peso recibido:", data);
 
-        if (data.peso !== undefined) {
-          setCurrentWeight(data.peso);
+        if (data.peso === undefined) return;
 
-          // Solo validar cuando el peso está estable y es mayor a 0
-          // Si el peso es 0, mantener el mensaje "Coloque los productos en la balanza"
-          if (data.estable && data.status === "ST" && data.peso > 0) {
-            validateWeight(data.peso);
+        setCurrentWeight(data.peso);
+
+        // --- Modo determinación de peso (producto con peso_gramos vacío) ---
+        const pending = pendingWeightProductRef.current;
+        if (pending) {
+          if (data.estable && data.status === "ST" && data.peso > 0 && !isCallingWeightEndpointRef.current) {
+            // Calcular peso conocido de todos los productos excepto el pendiente
+            const prods = productsRef.current;
+            const qtys = productQuantitiesRef.current;
+            let knownWeightGrams = 0;
+            for (const p of prods) {
+              if (p.cod_barra !== pending.cod_barra) {
+                const qty = qtys[p.cod_barra] || 1;
+                knownWeightGrams += (p.peso || 0) * qty;
+              }
+            }
+            const knownWeightKg = knownWeightGrams / 1000;
+            const differenceGrams = Math.round((data.peso - knownWeightKg) * 1000);
+
+            console.log(`⚖️ Determinación de peso - Lectura: ${data.peso}kg, Conocido: ${knownWeightKg}kg, Diferencia: ${differenceGrams}g`);
+
+            if (differenceGrams > 0) {
+              isCallingWeightEndpointRef.current = true;
+              setWeightValidationStatus("validating");
+
+              const baseUrl = import.meta.env.VITE_API_BASE_URL;
+              HttpClient.post<ScanningPesoResponse>(
+                `${baseUrl}/scanning-peso`,
+                { scanning: pending.codigo, peso_gramos: differenceGrams }
+              ).then((response) => {
+                console.log("✅ /scanning-peso respuesta:", response);
+                const newPeso = response.peso_gramos;
+                // Actualizar peso del producto en la lista
+                setProducts(prev => prev.map(p =>
+                  p.cod_barra === pending.cod_barra
+                    ? { ...p, peso: newPeso, es_pesable: true }
+                    : p
+                ));
+                pendingWeightProductRef.current = null;
+                isCallingWeightEndpointRef.current = false;
+                // Mostrar éxito
+                setWeightValidationStatus("success");
+                successTimeoutRef.current = setTimeout(() => {
+                  setShowWeightModal(false);
+                  setWeightValidationStatus("idle");
+                  setWeightError("");
+                  setCurrentWeight(0);
+                  setWeightValidationPending(false);
+                  successTimeoutRef.current = null;
+                }, 1500);
+              }).catch((error) => {
+                console.error("❌ Error en /scanning-peso:", error);
+                isCallingWeightEndpointRef.current = false;
+                setWeightError("Error al determinar peso del producto");
+                setWeightValidationStatus("error");
+              });
+            }
+          }
+          return; // No hacer monitoreo normal mientras hay peso pendiente
+        }
+
+        // --- Monitoreo continuo normal ---
+        const expected = expectedWeightRef.current;
+        const tol = toleranceRef.current;
+
+        // Si no hay peso esperado, no validar
+        if (expected <= 0) return;
+
+        if (data.estable && data.status === "ST") {
+          if (data.peso === 0) {
+            // Balanza vacía pero se espera peso
+            if (successTimeoutRef.current) {
+              clearTimeout(successTimeoutRef.current);
+              successTimeoutRef.current = null;
+            }
+            if (!showWeightModalRef.current && Date.now() - lastCancelRef.current > 3000) {
+              setShowWeightModal(true);
+              setWeightValidationPending(true);
+            }
+            if (showWeightModalRef.current) {
+              setWeightValidationStatus("waiting");
+              setWeightError("");
+            }
+          } else {
+            const diff = Math.abs(data.peso - expected);
+
+            if (diff <= tol) {
+              // Peso coincide
+              if (showWeightModalRef.current && successTimeoutRef.current === null) {
+                setWeightValidationStatus("success");
+                successTimeoutRef.current = setTimeout(() => {
+                  setShowWeightModal(false);
+                  setWeightValidationStatus("idle");
+                  setWeightError("");
+                  setCurrentWeight(0);
+                  setWeightValidationPending(false);
+                  successTimeoutRef.current = null;
+                }, 1500);
+              }
+              // Si modal no está abierto, todo bien, no hacer nada
+            } else {
+              // Peso no coincide
+              if (successTimeoutRef.current) {
+                clearTimeout(successTimeoutRef.current);
+                successTimeoutRef.current = null;
+              }
+              if (!showWeightModalRef.current && Date.now() - lastCancelRef.current > 3000) {
+                setShowWeightModal(true);
+                setWeightValidationPending(true);
+              }
+              if (showWeightModalRef.current) {
+                setWeightError(
+                  `El peso no coincide. Esperado: ${expected.toFixed(3)}kg, Actual: ${data.peso.toFixed(3)}kg`
+                );
+                setWeightValidationStatus("error");
+              }
+            }
           }
         }
       } catch (error) {
@@ -692,39 +913,11 @@ export default function SaleScreen({
 
     socket.onerror = (error) => {
       console.error("❌ Error en WebSocket de balanza:", error);
-      setWeightError("Error de conexión con la balanza");
-      setWeightValidationStatus("error");
     };
 
     socket.onclose = () => {
       console.log("🔌 Desconectado de balanza de validación");
     };
-  }, []);
-
-  // Validar peso (usa refs para acceder a valores actualizados en el callback del WebSocket)
-  const validateWeight = useCallback((currentPeso: number) => {
-    const expected = expectedWeightRef.current;
-    const tol = toleranceRef.current;
-    const diff = Math.abs(currentPeso - expected);
-
-    console.log(`📊 Validando peso - Esperado: ${expected}kg, Actual: ${currentPeso}kg, Diferencia: ${diff}kg, Tolerancia: ${tol}kg`);
-
-    if (diff <= tol) {
-      console.log("✅ Peso válido - dentro de tolerancia");
-      setWeightValidationStatus("success");
-
-      // Desconectar balanza y proceder al pago después de un momento
-      setTimeout(() => {
-        disconnectValidationScale();
-        proceedToPayment();
-      }, 1500);
-    } else {
-      console.log("❌ Peso fuera de tolerancia");
-      setWeightError(
-        `El peso no coincide. Esperado: ${expected.toFixed(3)}kg, Actual: ${currentPeso.toFixed(3)}kg`
-      );
-      setWeightValidationStatus("error");
-    }
   }, []);
 
   // Desconectar WebSocket de validación
@@ -762,50 +955,28 @@ export default function SaleScreen({
     });
   }, [navigate, invoiceData.ruc, invoiceData.razonSocial]);
 
-  // Cancelar validación de peso
-  const handleCancelWeightValidation = async () => {
-    disconnectValidationScale();
+  // Cancelar validación de peso (cierra modal pero NO desconecta la balanza)
+  const handleCancelWeightValidation = () => {
+    if (successTimeoutRef.current) {
+      clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = null;
+    }
+    // Limpiar estado de determinación de peso pendiente
+    pendingWeightProductRef.current = null;
+    isCallingWeightEndpointRef.current = false;
     setShowWeightModal(false);
     setWeightValidationStatus("idle");
     setCurrentWeight(0);
     setWeightError("");
-
-    // Limpiar ticket y recrear factura (solo en modo inserción)
-    if (useInsertProductsMode) {
-      showLoading();
-      await cleanAndRecreateInvoice();
-      hideLoading();
-    }
+    setWeightValidationPending(false);
+    lastCancelRef.current = Date.now();
+    // NO desconectar la balanza - debe seguir monitoreando
+    // El modal volverá a aparecer después de 3s si el peso sigue sin coincidir
   };
 
   const handlePagar = () => {
-    console.log("Iniciando validación de peso...");
-
-    // Calcular peso esperado
-    const expected = calculateExpectedWeight();
-    setExpectedWeight(expected);
-    expectedWeightRef.current = expected; // Actualizar ref para el callback del WebSocket
-
-    // Si no hay peso esperado (productos sin peso), ir directo al pago
-    if (expected <= 0) {
-      console.log("⚠️ No hay peso esperado, procediendo al pago directamente");
-      proceedToPayment();
-      return;
-    }
-
-    // Calcular tolerancia híbrida basada en el peso esperado
-    const toleranceValue = calculateHybridTolerance(expected);
-    setTolerance(toleranceValue);
-    toleranceRef.current = toleranceValue; // Actualizar ref para el callback del WebSocket
-
-    // Mostrar modal y conectar a la balanza
-    setShowWeightModal(true);
-    setWeightValidationStatus("waiting");
-    setWeightError("");
-    setCurrentWeight(0);
-
-    // Conectar a la balanza
-    connectValidationScale();
+    console.log("Procediendo al pago directamente (validación de peso se hace per-scan)...");
+    proceedToPayment();
   };
 
   const handleCancelar = async () => {
@@ -881,15 +1052,19 @@ export default function SaleScreen({
     <div className="h-screen bg-secondary-100 flex flex-col p-2 md:p-3 lg:p-4 xl:p-7 overflow-hidden">
       <div className="w-full flex flex-col h-full">
         {/* Header */}
-        <div className="bg-primary-50 rounded-lg shadow-sm p-2 md:p-3 lg:p-4 xl:p-8 mb-1 md:mb-2 lg:mb-3 xl:mb-4 flex-shrink-0">
-          {/* Logo */}
-          <div className="flex justify-center mb-1 md:mb-2 lg:mb-3 xl:mb-4">
-            <img src={archiLogo} alt="Archi" className="h-auto w-24 md:w-32 lg:w-48 xl:w-96" />
+        <div className="bg-primary-50 rounded-lg shadow-sm p-2 md:p-2 lg:p-3 xl:p-5 mb-1 md:mb-2 lg:mb-3 xl:mb-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            {/* Logo achicado */}
+            <img src={archiLogo} alt="Archi" className="h-auto w-16 md:w-20 lg:w-28 xl:w-48" />
+            {/* Nombre del cliente */}
+            <span className="text-sm md:text-base lg:text-lg xl:text-2xl font-medium text-primary-600">
+              {userName}
+            </span>
           </div>
-          {/* Welcome Message */}
-          <h2 className="text-base md:text-lg lg:text-2xl xl:text-4xl font-semibold text-primary-600 text-center">
-            {userName}
-          </h2>
+          {/* Instrucción destacada */}
+          <p className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600 text-center mt-1 md:mt-2 lg:mt-3 xl:mt-4 animate-pulse">
+            Escanee sus productos para agregarlos
+          </p>
         </div>
 
         {/* Products List */}
@@ -1030,8 +1205,8 @@ export default function SaleScreen({
       {showWeightModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 md:p-3 lg:p-4">
           <div className="bg-white rounded-xl md:rounded-2xl lg:rounded-3xl p-4 md:p-5 lg:p-6 xl:p-12 w-full max-w-sm md:max-w-md lg:max-w-lg xl:max-w-2xl shadow-2xl flex flex-col items-center">
-            {/* Estado: Esperando peso */}
-            {(weightValidationStatus === "waiting" || weightValidationStatus === "error") && (
+            {/* Estado: Esperando peso / Determinando peso / Error */}
+            {(weightValidationStatus === "waiting" || weightValidationStatus === "validating" || weightValidationStatus === "error") && (
               <>
                 {/* Icono de balanza digital */}
                 <div className={`w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-40 xl:h-40 ${weightValidationStatus === "error" ? "bg-red-100" : "bg-primary-100"} rounded-full flex items-center justify-center mb-3 md:mb-4 lg:mb-6 xl:mb-8`}>
@@ -1058,14 +1233,14 @@ export default function SaleScreen({
                 </div>
 
                 <h2 className={`text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold ${weightValidationStatus === "error" ? "text-red-600" : "text-primary-600"} mb-1 md:mb-2 lg:mb-3 xl:mb-4 text-center`}>
-                  {weightValidationStatus === "error"
-                    ? "Los pesos no coinciden"
-                    : "Coloque los productos en la balanza"}
+                  Coloque los productos en la balanza
                 </h2>
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-600 mb-3 md:mb-4 lg:mb-5 xl:mb-6 text-center">
                   {weightValidationStatus === "error"
-                    ? "Ajuste los productos y espere..."
+                    ? "Por favor, coloque todos los productos escaneados en la balanza"
+                    : weightValidationStatus === "validating"
+                    ? "Consultando peso al servidor..."
                     : "Esperando lectura de peso estable..."}
                 </p>
 
@@ -1073,16 +1248,8 @@ export default function SaleScreen({
                 <img
                   src={archiLogo}
                   alt="Cargando..."
-                  className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-32 xl:h-32 object-contain animate-spin mb-3 md:mb-4 lg:mb-5 xl:mb-6"
+                  className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-32 xl:h-32 object-contain animate-spin"
                 />
-
-                {/* Botón cancelar */}
-                <button
-                  onClick={handleCancelWeightValidation}
-                  className="bg-gray-300 text-gray-800 font-bold py-2 md:py-2.5 lg:py-3 xl:py-4 px-6 md:px-8 lg:px-10 xl:px-12 rounded-lg xl:rounded-xl transition-colors duration-200 text-sm md:text-base lg:text-lg xl:text-xl"
-                >
-                  Cancelar
-                </button>
               </>
             )}
 
@@ -1111,7 +1278,7 @@ export default function SaleScreen({
                 </h2>
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-500">
-                  Redirigiendo al pago...
+                  Puede continuar escaneando...
                 </p>
               </>
             )}

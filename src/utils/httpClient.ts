@@ -15,7 +15,9 @@ export class HttpClient {
     options: RequestInit = {}
   ): Promise<Response> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = this.timeout > 0
+      ? setTimeout(() => controller.abort(), this.timeout)
+      : null;
 
     try {
       const defaultHeaders: HeadersInit = {
@@ -36,10 +38,10 @@ export class HttpClient {
       const response = await fetch(url, {
         ...options,
         headers,
-        signal: controller.signal,
+        ...(this.timeout > 0 ? { signal: controller.signal } : {}),
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw await ApiError.fromResponse(response, url);
@@ -47,7 +49,7 @@ export class HttpClient {
 
       return response;
     } catch (error) {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
 
       if (error instanceof Error && error.name === 'AbortError') {
         throw new ApiError(408, 'La conexión tardó demasiado. Verifica que el servidor esté disponible.', 'Request Timeout', url);

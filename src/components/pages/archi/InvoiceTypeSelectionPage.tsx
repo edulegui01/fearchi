@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import archiLogo from "../../../assets/archi_logo_al_paso.png";
 import OnScreenKeyboard from "../../components/OnScreenKeyboard";
@@ -7,6 +7,17 @@ import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
 import { useAlert } from "../../common/AlertContext";
 import type { VentasAut } from "../../../types";
+
+// Tipo para datos de la balanza
+interface ScaleData {
+  raw: string;
+  status: string;
+  type: string;
+  peso: number;
+  unit: string;
+  estable: boolean;
+  timestamp: string;
+}
 
 interface InvoiceTypeSelectionPageProps {
   onBack?: () => void;
@@ -54,7 +65,9 @@ export default function InvoiceTypeSelectionPage({
   const [dv, setDv] = useState("");
   const [razonSocial, setRazonSocial] = useState("");
   const [activeField, setActiveField] = useState<ActiveField>("ruc");
-  const [pendingClientData, setPendingClientData] = useState<VentasAut | null>(null);
+  const [pendingClientData, setPendingClientData] = useState<VentasAut | null>(
+    null,
+  );
   const [pendingFullRuc, setPendingFullRuc] = useState("");
   const [pendingCaja, setPendingCaja] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -62,13 +75,17 @@ export default function InvoiceTypeSelectionPage({
   const { showAlert } = useAlert();
   const [cajaValue, setCajaValue] = useState<number | null>(null);
 
+  // Estado para validación de balanza vacía
+  const [showScaleWarning, setShowScaleWarning] = useState(false);
+  const scaleSocketRef = useRef<WebSocket | null>(null);
+
   // Obtener caja al montar el componente
   useEffect(() => {
     const fetchCaja = async () => {
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL;
         const response = await HttpClient.get<{ caja: number }>(
-          `${baseUrl}/caja-config/caja`
+          `${baseUrl}/caja-config/caja`,
         );
         setCajaValue(response.caja);
       } catch (error) {
@@ -76,6 +93,53 @@ export default function InvoiceTypeSelectionPage({
       }
     };
     fetchCaja();
+  }, []);
+
+  // Verificar que la balanza esté vacía al montar
+  useEffect(() => {
+    const scaleUrl =
+      import.meta.env.VITE_SOCKET_VALIDATION_SCALE_URL || "ws://localhost:3001";
+    console.log(
+      "⚖️ Conectando a balanza para verificar que esté vacía:",
+      scaleUrl,
+    );
+
+    const socket = new WebSocket(scaleUrl);
+    scaleSocketRef.current = socket;
+
+    socket.onmessage = (event) => {
+      try {
+        const data: ScaleData = JSON.parse(event.data);
+        if (data.peso === undefined) return;
+
+        if (data.estable && data.status === "ST") {
+          if (data.peso > 0.005) {
+            // Hay peso en la balanza, mostrar advertencia
+            setShowScaleWarning(true);
+          } else {
+            // Balanza vacía, ocultar advertencia
+            setShowScaleWarning(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error al parsear datos de balanza:", error);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error("❌ Error en WebSocket de balanza:", error);
+    };
+
+    socket.onclose = () => {
+      console.log("🔌 Desconectado de balanza de verificación");
+    };
+
+    return () => {
+      if (scaleSocketRef.current) {
+        scaleSocketRef.current.close();
+        scaleSocketRef.current = null;
+      }
+    };
   }, []);
 
   // Calcular automáticamente el DV cuando cambia el RUC
@@ -94,6 +158,7 @@ export default function InvoiceTypeSelectionPage({
 
     let razonSocial = "Sin Nombre";
     let documento = "0";
+    let facturaNro = 0;
 
     try {
       setErrorMessage("");
@@ -108,14 +173,14 @@ export default function InvoiceTypeSelectionPage({
       }
 
       // 1. Buscar datos del cliente
-      const clientResponse = await HttpClient.post<{ nombre_cliente: string; documento: string }>(
-        `${baseUrl}/pos/ventas-aut/find-client-details`,
-        {
-          caja,
-          operacion: 4,
-          documento: "44444401-7",
-        }
-      );
+      const clientResponse = await HttpClient.post<{
+        nombre_cliente: string;
+        documento: string;
+      }>(`${baseUrl}/pos/ventas-aut/find-client-details`, {
+        caja,
+        operacion: 4,
+        documento: "44444401-7",
+      });
 
       // 3. Crear factura con el documento del cliente
       const invoiceResponse = await HttpClient.post<VentasAut>(
@@ -124,11 +189,12 @@ export default function InvoiceTypeSelectionPage({
           caja,
           operacion: 6,
           documento: clientResponse.documento,
-        }
+        },
       );
 
       razonSocial = invoiceResponse.nombre_cliente;
       documento = invoiceResponse.documento;
+      facturaNro = invoiceResponse.ticket;
     } catch (error) {
       console.error("Error al buscar datos del cliente sin nombre:", error);
       if (error instanceof ApiError && error.status === 400) {
@@ -145,7 +211,7 @@ export default function InvoiceTypeSelectionPage({
       invoiceType: "sin_nombre",
       razonSocial,
       ruc: documento,
-      facturaNro: invoiceResponse.ticket,
+      facturaNro,
     };
 
     sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));
@@ -212,7 +278,7 @@ export default function InvoiceTypeSelectionPage({
           caja,
           operacion: 4,
           documento: fullRuc,
-        }
+        },
       );
 
       console.log("Respuesta del servidor:", response);
@@ -241,7 +307,9 @@ export default function InvoiceTypeSelectionPage({
         setShowRazonSocialModal(true);
         setActiveField("razonSocial");
       } else {
-        showAlert("Error al buscar datos del cliente. Por favor, intente nuevamente.");
+        showAlert(
+          "Error al buscar datos del cliente. Por favor, intente nuevamente.",
+        );
       }
       hideLoading();
     }
@@ -251,17 +319,20 @@ export default function InvoiceTypeSelectionPage({
     caja: string,
     fullRuc: string,
     nombreCliente: string,
-    clientData: VentasAut
+    clientData: VentasAut,
   ) => {
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
       // Hacer petición POST para crear la factura
-      const invoiceResponse = await HttpClient.post<VentasAut>(`${baseUrl}/pos/ventas-aut/create-invoice`, {
-        caja,
-        operacion: 6,
-        documento: fullRuc,
-      });
+      const invoiceResponse = await HttpClient.post<VentasAut>(
+        `${baseUrl}/pos/ventas-aut/create-invoice`,
+        {
+          caja,
+          operacion: 6,
+          documento: fullRuc,
+        },
+      );
 
       // Guardar datos para factura con nombre
       const invoiceData = {
@@ -282,7 +353,7 @@ export default function InvoiceTypeSelectionPage({
         const { products, productQuantities } = JSON.parse(priceCheckData);
         console.log(
           "📦 Cargando productos desde consulta de precios:",
-          products
+          products,
         );
 
         navigationState = {
@@ -334,7 +405,7 @@ export default function InvoiceTypeSelectionPage({
           caja: Number(pendingCaja),
           operacion: 6,
           documento: pendingFullRuc,
-        }
+        },
       );
 
       // Guardar datos para factura con nombre
@@ -356,7 +427,7 @@ export default function InvoiceTypeSelectionPage({
         const { products, productQuantities } = JSON.parse(priceCheckData);
         console.log(
           "📦 Cargando productos desde consulta de precios:",
-          products
+          products,
         );
 
         navigationState = {
@@ -493,7 +564,7 @@ export default function InvoiceTypeSelectionPage({
               </svg>
             </div>
             <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">
-              Con Nombre
+              Con RUC
             </span>
           </button>
         </div>
@@ -515,7 +586,10 @@ export default function InvoiceTypeSelectionPage({
               Datos de Facturación
             </h2>
 
-            <form onSubmit={handleFormSubmit} className="space-y-2 md:space-y-3 lg:space-y-4 xl:space-y-8">
+            <form
+              onSubmit={handleFormSubmit}
+              className="space-y-2 md:space-y-3 lg:space-y-4 xl:space-y-8"
+            >
               {/* Campo RUC */}
               <div>
                 <label
@@ -542,7 +616,9 @@ export default function InvoiceTypeSelectionPage({
                   />
 
                   {/* Separador */}
-                  <span className="text-base md:text-lg lg:text-2xl xl:text-4xl font-bold text-gray-600">-</span>
+                  <span className="text-base md:text-lg lg:text-2xl xl:text-4xl font-bold text-gray-600">
+                    -
+                  </span>
 
                   {/* Input DV (calculado automáticamente) */}
                   <input
@@ -591,6 +667,54 @@ export default function InvoiceTypeSelectionPage({
         </div>
       )}
 
+      {/* Modal bloqueante - Balanza no vacía */}
+      {showScaleWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-2 md:p-3 lg:p-4">
+          <div className="bg-white rounded-xl md:rounded-2xl lg:rounded-3xl p-4 md:p-6 lg:p-8 xl:p-12 w-full max-w-sm md:max-w-md lg:max-w-lg xl:max-w-2xl shadow-2xl flex flex-col items-center">
+            {/* Icono de advertencia */}
+            <div className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-40 xl:h-40 bg-amber-100 rounded-full flex items-center justify-center mb-3 md:mb-4 lg:mb-6 xl:mb-8">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-10 w-10 md:h-12 md:w-12 lg:h-14 lg:w-14 xl:h-24 xl:w-24 text-amber-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                {/* Plataforma de la balanza */}
+                <rect x="2" y="16" width="20" height="2" rx="0.5" />
+                {/* Base/soporte */}
+                <path d="M6 18v2h12v-2" />
+                <rect x="4" y="20" width="16" height="2" rx="0.5" />
+                {/* Columna central */}
+                <rect x="10" y="8" width="4" height="8" rx="0.5" />
+                {/* Display digital */}
+                <rect x="5" y="2" width="14" height="6" rx="1" />
+                {/* Pantalla del display */}
+                <rect
+                  x="7"
+                  y="3.5"
+                  width="10"
+                  height="3"
+                  rx="0.5"
+                  fill="currentColor"
+                  opacity="0.2"
+                />
+              </svg>
+            </div>
+
+            <h2 className="text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold text-amber-600 mb-2 md:mb-3 lg:mb-4 xl:mb-6 text-center">
+              Balanza con productos
+            </h2>
+
+            <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-600 text-center">
+              La balanza debe estar vacía para iniciar una compra, por favor
+              retire los productos de la balanza para continuar con su compra
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Razón Social */}
       {showRazonSocialModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 md:p-3 lg:p-4 xl:p-8 overflow-y-auto">
@@ -599,7 +723,10 @@ export default function InvoiceTypeSelectionPage({
               Ingrese Razón Social
             </h2>
 
-            <form onSubmit={handleRazonSocialSubmit} className="space-y-2 md:space-y-3 lg:space-y-4 xl:space-y-8">
+            <form
+              onSubmit={handleRazonSocialSubmit}
+              className="space-y-2 md:space-y-3 lg:space-y-4 xl:space-y-8"
+            >
               {/* Campo Razón Social */}
               <div>
                 <label

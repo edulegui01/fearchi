@@ -6,7 +6,7 @@ export interface ProductItemProps {
   index: number;
   quantity?: number;
   onDelete?: (productId: string) => void;
-  onIncrement?: (productId: string) => void;
+  onIncrement?: (productId: string) => void | Promise<void>;
   onDecrement?: (productId: string) => void;
 }
 

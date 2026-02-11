@@ -112,15 +112,24 @@ export default function PaymentSelectionPage({
         };
       });
 
-      const response = await HttpClient.post<PaymentResponse>(
-        `${baseUrl}${endpoint}`,
-        {
-          caja,
-          facturaNro,
-          monto: totalAmount,
-          detalles,
-        },
-      );
+      // Sin timeout para pagos: espera indefinidamente la interacción del cliente
+      const originalTimeout = HttpClient.getTimeout();
+      HttpClient.setTimeout(0);
+
+      let response: PaymentResponse;
+      try {
+        response = await HttpClient.post<PaymentResponse>(
+          `${baseUrl}${endpoint}`,
+          {
+            caja,
+            facturaNro,
+            monto: totalAmount,
+            detalles,
+          },
+        );
+      } finally {
+        HttpClient.setTimeout(originalTimeout);
+      }
 
       setPaymentResult({
         success: true,
@@ -169,7 +178,7 @@ export default function PaymentSelectionPage({
 
   const handlePagoTarjeta = () => {
     setPaymentMethod("tarjeta");
-    setPaymentStatus("idle");
+    setPaymentStatus("loading");
     setPaymentResult(null);
     setShowModal(true);
 
@@ -181,7 +190,7 @@ export default function PaymentSelectionPage({
 
   const handlePagoQR = () => {
     setPaymentMethod("qr");
-    setPaymentStatus("idle");
+    setPaymentStatus("loading");
     setPaymentResult(null);
     setShowModal(true);
 
