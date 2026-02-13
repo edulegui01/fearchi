@@ -30,6 +30,86 @@ export default function MainMenuPage({
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
 
+  // Estados de conexión (se verifican bajo demanda)
+  const [isScaleConnected, setIsScaleConnected] = useState(true);
+  const [isPosConnected, setIsPosConnected] = useState(true);
+
+  // Verificar conexión con la balanza (intento de WebSocket con timeout)
+  const checkScaleConnection = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const scaleUrl =
+        import.meta.env.VITE_SOCKET_VALIDATION_SCALE_URL || "ws://localhost:3001";
+
+      const socket = new WebSocket(scaleUrl);
+      const timeout = setTimeout(() => {
+        socket.close();
+        resolve(false);
+      }, 3000);
+
+      socket.onopen = () => {
+        clearTimeout(timeout);
+        socket.close();
+        resolve(true);
+      };
+
+      socket.onerror = () => {
+        clearTimeout(timeout);
+        socket.close();
+        resolve(false);
+      };
+    });
+  };
+
+  // Verificar ambos dispositivos y proceder con la compra
+  const checkDevicesAndStartPurchase = async (barcode?: string) => {
+    try {
+      showLoading();
+
+      // Verificar balanza
+      const scaleOk = await checkScaleConnection();
+      setIsScaleConnected(scaleOk);
+      if (!scaleOk) {
+        console.error("❌ MainMenu: Balanza no disponible");
+        hideLoading();
+        return;
+      }
+
+      // Verificar POS Bancard
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      await HttpClient.post(`${baseUrl}/bancard/verificar-conexion`, {});
+      setIsPosConnected(true);
+      hideLoading();
+
+      // Ambos dispositivos conectados, proceder con la compra
+      if (barcode) {
+        sessionStorage.setItem("pendingBarcode", barcode);
+      }
+      if (onIniciarCompra) onIniciarCompra();
+    } catch {
+      console.error("❌ MainMenu: POS Bancard no disponible");
+      setIsPosConnected(false);
+      hideLoading();
+    }
+  };
+
+  // Escucha de escaneo en el menú principal (sin modal abierto)
+  useEffect(() => {
+    if (showPriceModal) return;
+
+    const handleBarcodeMain = (barcode: string) => {
+      // Verificar dispositivos y proceder si están conectados
+      checkDevicesAndStartPurchase(barcode);
+    };
+
+    barcodeService.setOnBarcodeScanned(handleBarcodeMain);
+    barcodeService.startListening();
+
+    return () => {
+      barcodeService.stopListening();
+    };
+  }, [showPriceModal, onIniciarCompra]);
+
+  // Escucha de escaneo dentro del modal de consulta de precio
   useEffect(() => {
     if (!showPriceModal) return;
 
@@ -75,13 +155,13 @@ export default function MainMenuPage({
     setErrorMessage("");
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product) return;
-    // Guardar el código de barras para que SaleScreen lo agregue via endpoint
-    sessionStorage.setItem("pendingBarcode", product.codigo_barra);
+    const barcode = product.codigo_barra;
     setShowPriceModal(false);
     setProduct(null);
-    if (onIniciarCompra) onIniciarCompra();
+    // Verificar dispositivos y proceder con el código de barras del producto consultado
+    await checkDevicesAndStartPurchase(barcode);
   };
 
   return (
@@ -96,10 +176,36 @@ export default function MainMenuPage({
           />
         </div>
 
+        {/* Banners de error de conexión */}
+        {(!isScaleConnected || !isPosConnected) && (
+          <div className="w-full flex flex-col gap-2 md:gap-3">
+            {!isScaleConnected && (
+              <div className="w-full bg-red-100 border-2 border-red-400 text-red-700 px-3 md:px-4 lg:px-5 xl:px-8 py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-center">
+                <p className="text-sm md:text-base lg:text-lg xl:text-3xl font-bold">
+                  Sin conexión con la balanza
+                </p>
+                <p className="text-xs md:text-sm lg:text-base xl:text-xl mt-1">
+                  Verifique la conexión de la balanza para iniciar una compra
+                </p>
+              </div>
+            )}
+            {!isPosConnected && (
+              <div className="w-full bg-red-100 border-2 border-red-400 text-red-700 px-3 md:px-4 lg:px-5 xl:px-8 py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-center">
+                <p className="text-sm md:text-base lg:text-lg xl:text-3xl font-bold">
+                  Sin conexión con el POS Bancard
+                </p>
+                <p className="text-xs md:text-sm lg:text-base xl:text-xl mt-1">
+                  No se pudo establecer conexión con el dispositivo de pago
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Botones superiores - Iniciar Compra y Consulta Precio */}
         <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-6 xl:gap-10 w-full">
           <button
-            onClick={onIniciarCompra}
+            onClick={() => checkDevicesAndStartPurchase()}
             className="bg-primary-600 text-white font-bold py-4 md:py-6 lg:py-8 xl:py-16 px-4 md:px-5 lg:px-6 xl:px-12 rounded-lg lg:rounded-xl xl:rounded-2xl shadow-2xl transition-colors duration-200 text-base md:text-xl lg:text-2xl xl:text-5xl"
           >
             Iniciar Compra
