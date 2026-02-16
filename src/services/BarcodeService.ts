@@ -4,7 +4,7 @@ class BarcodeService {
   private isListening: boolean = false;
   private onBarcodeScanned: ((barcode: string) => void) | null = null;
   private readonly BUFFER_TIMEOUT = 100; // ms para considerar fin de escaneo
-  private navigate: ((path: string, options?: any) => void) | null = null;
+  private _navigate: ((path: string, options?: any) => void) | null = null;
 
   // Establecer callback para cuando se escanee un código
   setOnBarcodeScanned(callback: (barcode: string) => void) {
@@ -118,7 +118,6 @@ class BarcodeService {
 
       // Importar dinámicamente para evitar dependencias circulares
       const ProductService = (await import('./product/ProductService')).default;
-      const { ApiError } = await import('../utils/ApiError');
 
       // Hacer petición GET al endpoint
       const product = await ProductService.getProductByBarcode(barcode);

@@ -161,8 +161,9 @@ export class HttpClient {
   static async upload<T = any>(url: string, formData: FormData): Promise<T> {
     try {
       // Para uploads, no incluir Content-Type header (fetch lo maneja automáticamente)
-      const headers = AppConfig.getDefaultHeaders();
-      delete (headers as any)['Content-Type'];
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      const token = localStorage.getItem('authToken');
+      if (token) { headers['Authorization'] = `Bearer ${token}`; }
 
       const response = await this.request(url, {
         method: 'POST',

@@ -11,7 +11,7 @@ interface HeaderProps {
 
 export default function Header({ 
   logoText = "Fe-SCO", 
-  logoImage,
+  logoImage: _logoImage,
   userName = "Usuario", 
   userEmail = "usuario@ejemplo.com",
   onLogout 

@@ -956,7 +956,7 @@ export default function SaleScreen({
   }, [navigate, invoiceData.ruc, invoiceData.razonSocial]);
 
   // Cancelar validación de peso (cierra modal pero NO desconecta la balanza)
-  const handleCancelWeightValidation = () => {
+  const _handleCancelWeightValidation = () => {
     if (successTimeoutRef.current) {
       clearTimeout(successTimeoutRef.current);
       successTimeoutRef.current = null;

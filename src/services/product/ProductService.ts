@@ -1,6 +1,5 @@
 import HttpClient from '../../utils/httpClient';
-import { ApiError } from '../../utils/ApiError';
-import type { ApiProduct, CreateProductDto, UpdateProductDto, ProductFilters, ProductResponse, ScannedProduct, ProductNotFoundError, Product } from '../../types';
+import type { ApiProduct, CreateProductDto, UpdateProductDto, ProductFilters, ProductResponse, ScannedProduct, Product } from '../../types';
 
 // Clase principal del servicio de productos
 class ProductService {

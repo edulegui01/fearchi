@@ -63,7 +63,7 @@ function VirtualKeyboard({ onKeyPress, activeInput }: VirtualKeyboardProps) {
   );
 }
 
-export default function PaymentModal({ isOpen, onClose, onConfirm, totalAmount, cedula, userName }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, onConfirm, totalAmount: _totalAmount, cedula, userName: _userName }: PaymentModalProps) {
   const [ruc, setRuc] = useState('');
   const [activeInput, setActiveInput] = useState<'ruc' | null>(null);
 
@@ -71,9 +71,9 @@ export default function PaymentModal({ isOpen, onClose, onConfirm, totalAmount, 
   const dv = '0';
   const razonSocial = 'Usuario';
   const email = 'usuario@ejemplo.com';
-  const setDv = () => {};
-  const setRazonSocial = () => {};
-  const setEmail = () => {};
+  const _setDv = () => {};
+  const _setRazonSocial = () => {};
+  const _setEmail = () => {};
 
   useEffect(() => {
     if (isOpen) {

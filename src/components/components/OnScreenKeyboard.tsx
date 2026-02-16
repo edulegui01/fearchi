@@ -24,8 +24,8 @@ export default function OnScreenKeyboard({
   const lettersRow3 = ['Z', 'X', 'C', 'V', 'B', 'N', 'M'];
 
   const numbersRow1 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-  const numbersRow2 = ['-', '/', ':', ';', '(', ')', '$', '&', '@', '"'];
-  const numbersRow3 = ['.', ',', '?', '!', "'", '_', '+', '=', '*', '#'];
+  const _numbersRow2 = ['-', '/', ':', ';', '(', ')', '$', '&', '@', '"'];
+  const _numbersRow3 = ['.', ',', '?', '!', "'", '_', '+', '=', '*', '#'];
 
   const handleKeyPress = (key: string) => {
     const finalKey = type === 'letters' && !isUpperCase ? key.toLowerCase() : key;

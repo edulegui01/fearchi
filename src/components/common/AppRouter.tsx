@@ -210,12 +210,7 @@ function AppContent({
       <Route
         path="/payment"
         element={
-          <PaymentPage
-            products={[]}
-            totalAmount={0}
-            onPaymentSuccess={() => navigate("/dashboard")}
-            onCancel={() => navigate("/vertical-products")}
-          />
+          <PaymentPage />
         }
       />
 

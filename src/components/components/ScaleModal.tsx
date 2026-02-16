@@ -7,7 +7,7 @@ interface ScaleModalProps {
   userName?: string;
 }
 
-export default function ScaleModal({ isOpen, onClose, message, userName }: ScaleModalProps) {
+export default function ScaleModal({ isOpen, onClose: _onClose, message, userName: _userName }: ScaleModalProps) {
   if (!isOpen) return null;
 
   return (

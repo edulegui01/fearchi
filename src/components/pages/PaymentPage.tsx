@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import scoLogo from '../../assets/sco-logo.png';
-import type { Product, ProductQuantities } from '../../types';
 
 export default function PaymentPage() {
   const location = useLocation();
   const navigate = useNavigate();
   
   // Obtener datos del state de navegación
-  const { products = [], totalAmount = 0, ruc = '', razonSocial = '', productQuantities = {} } = location.state || {};
+  const { products: _products = [], totalAmount = 0, ruc = '', razonSocial = '', productQuantities: _productQuantities = {} } = location.state || {};
   const [qrCode, setQrCode] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [showSuccessModal, setShowSuccessModal] = useState(false);

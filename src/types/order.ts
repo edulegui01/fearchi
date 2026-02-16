@@ -1,5 +1,5 @@
-import { Product, ProductQuantities } from './product';
-import { User } from './user';
+import type { Product, ProductQuantities } from './product';
+import type { ApiProduct } from './product';
 
 // Estado de la orden/pedido
 export interface LocationState {
@@ -9,6 +9,13 @@ export interface LocationState {
   timestamp: string;
   source: string;
   cedula?: string;
+  fromBarcodeScan?: boolean;
+  scannedProduct?: ApiProduct;
+  fromPriceCheck?: boolean;
+  fromBagSelection?: boolean;
+  productQuantities?: ProductQuantities;
+  razonSocial?: string;
+  ruc?: string;
 }
 
 // Datos de la orden para sessionStorage

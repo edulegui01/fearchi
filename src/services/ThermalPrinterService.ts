@@ -25,8 +25,8 @@ class ThermalPrinterService {
   private encoder = new TextEncoder();
 
   // Comandos ESC/POS básicos
-  private readonly ESC = '\x1B';
-  private readonly GS = '\x1D';
+  private readonly _ESC = '\x1B';
+  private readonly _GS = '\x1D';
   
   // Comandos de formato
   private readonly COMMANDS = {

@@ -1,5 +1,5 @@
-import { Product } from './product';
-import { User } from './user';
+import type { Product } from './product';
+import type { User } from './user';
 
 // Datos recibidos por socket
 export interface SocketData {

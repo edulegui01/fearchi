@@ -20,7 +20,7 @@ export default function VerticalProductPage({ userName: propUserName = "Usuario"
   const [modalMessage, setModalMessage] = useState('');
   const processedScannedProduct = useRef(false);
   const [scaleWeight, setScaleWeight] = useState<number>(0);
-  const [scaleConnected, setScaleConnected] = useState(false);
+  const [_scaleConnected, setScaleConnected] = useState(false);
   const [hasWeightChanged, setHasWeightChanged] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   

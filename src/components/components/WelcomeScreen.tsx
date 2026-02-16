@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import scoLogo from '../../assets/sco-logo.png';
 import { socketService } from '../../services/SocketService';
 import { barcodeService } from '../../services/BarcodeService';
-import ProductService from '../../services/product/ProductService';
-import type { Product, ApiProduct } from '../../types';
+import type { Product } from '../../types';
 
 interface User {
   nombre: string;
@@ -26,10 +25,10 @@ interface WelcomeScreenProps {
   onContinue?: () => void;
 }
 
-export default function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
+export default function WelcomeScreen({ onContinue: _onContinue }: WelcomeScreenProps) {
   console.log('🚀 WelcomeScreen se está renderizando');
   const navigate = useNavigate();
-  const [socketConnected, setSocketConnected] = useState(false);
+  const [_socketConnected, setSocketConnected] = useState(false);
 
   useEffect(() => {
     console.log('🔄 WelcomeScreen montado - Iniciando servicios...');
@@ -61,7 +60,7 @@ export default function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
         // Navegar a VerticalProductPage
         navigate('/vertical-products');
       },
-      onScaleWeightUpdate: (weight) => {
+      onScaleWeightUpdate: (_weight) => {
         // No hacer nada en WelcomeScreen
       },
       onConnectionChange: (connected, socketType) => {
@@ -105,9 +104,9 @@ export default function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     };
 
     // Agregar listeners
-    window.addEventListener('productFound', handleProductFound);
-    window.addEventListener('productNotFound', handleProductNotFound);
-    window.addEventListener('barcodeError', handleBarcodeError);
+    window.addEventListener('productFound', handleProductFound as EventListener);
+    window.addEventListener('productNotFound', handleProductNotFound as EventListener);
+    window.addEventListener('barcodeError', handleBarcodeError as EventListener);
 
     // Activar manejo automático con API de productos (devuelve ApiProduct)
     barcodeService.setAutomaticProductAPIHandling(true);
@@ -119,9 +118,9 @@ export default function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     // Cleanup function
     return () => {
       // Remover listeners
-      window.removeEventListener('productFound', handleProductFound);
-      window.removeEventListener('productNotFound', handleProductNotFound);
-      window.removeEventListener('barcodeError', handleBarcodeError);
+      window.removeEventListener('productFound', handleProductFound as EventListener);
+      window.removeEventListener('productNotFound', handleProductNotFound as EventListener);
+      window.removeEventListener('barcodeError', handleBarcodeError as EventListener);
 
       barcodeService.stopListening();
       socketService.destroy();

@@ -316,7 +316,7 @@ export default function InvoiceTypeSelectionPage({
   };
 
   const createInvoice = async (
-    caja: string,
+    caja: string | number,
     fullRuc: string,
     nombreCliente: string,
     clientData: VentasAut,

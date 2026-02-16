@@ -3,7 +3,7 @@ import type { ProductItemProps } from '../../types';
 
 export default function ProductItem({
   product,
-  index,
+  index: _index,
   quantity = 1,
   onDelete,
   onIncrement,

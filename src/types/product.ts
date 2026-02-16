@@ -75,10 +75,15 @@ export interface ProductQuantities {
 export interface ScannedProduct {
   codigo: string;
   codigo_barras: string;
+  codigo_barra_int?: string;
   precio: number;
   total: number;
   descripcion: string;
+  descripcion_producto?: string;
+  descripcion_corta?: string;
   peso_gramos: string;
+  pesable?: number;
+  nivel3?: number;
   cantidad: number;
   total_venta: number;
   imagen: string;

@@ -7,7 +7,7 @@ import ProductService from '../../../services/product/ProductService';
 import { ApiError } from '../../../utils/ApiError';
 import type { Product, ApiProduct, ProductQuantities, LocationState, UserProps, ScannedProduct } from '../../../types';
 
-export default function SaleScreenModern({ userName: propUserName = "Usuario", cedula = "" }: UserProps) {
+export default function SaleScreenModern({ userName: propUserName = "Usuario", cedula: _cedula = "" }: UserProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as LocationState;
