@@ -76,6 +76,7 @@ export default function SaleScreen({
   );
   const [isActive, setIsActive] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
 
   // Estados para validación de peso
   const [showWeightModal, setShowWeightModal] = useState(false);
@@ -1041,11 +1042,27 @@ export default function SaleScreen({
     }
   };
 
-  const handleDecrementQuantity = (productId: string) => {
-    setProductQuantities((prev) => ({
-      ...prev,
-      [productId]: Math.max(1, (prev[productId] || 1) - 1),
-    }));
+  const handleDecrementQuantity = (_productId: string) => {
+    setShowClearModal(true);
+  };
+
+  const handleConfirmClear = async () => {
+    setIsCancelling(true);
+    setShowClearModal(false);
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      await HttpClient.post(`${baseUrl}/pos/ventas-aut/ticket-clean`, {
+        caja: 1,
+      });
+      console.log("✅ Ticket limpiado en el servidor");
+    } catch (error) {
+      console.error("❌ Error al limpiar ticket:", error);
+    }
+    setProducts([]);
+    setProductQuantities({});
+    sessionStorage.removeItem("currentOrder");
+    sessionStorage.removeItem("invoiceData");
+    setIsCancelling(false);
   };
 
   return (
@@ -1189,6 +1206,35 @@ export default function SaleScreen({
           </button>
         </div>
       </div>
+
+      {/* Modal Confirmación Limpiar Productos */}
+      {showClearModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 xl:p-10 w-full max-w-md xl:max-w-xl shadow-2xl flex flex-col items-center gap-4 xl:gap-6">
+            <div className="w-16 h-16 xl:w-24 xl:h-24 bg-yellow-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 xl:w-12 xl:h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl xl:text-3xl font-bold text-gray-900 text-center">¿Limpiar lista de productos?</h2>
+            <p className="text-gray-600 xl:text-xl text-center">Esta acción borrará todos los productos de la lista para poder cargarlos de nuevo.</p>
+            <div className="flex gap-3 xl:gap-4 w-full mt-2">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 xl:py-5 rounded-xl text-base xl:text-2xl font-semibold transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmClear}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 xl:py-5 rounded-xl text-base xl:text-2xl font-semibold transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {isCancelling && (

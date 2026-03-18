@@ -26,6 +26,7 @@ export default function MainMenuPage({
   onSalir,
 }: MainMenuPageProps) {
   const [showPriceModal, setShowPriceModal] = useState(false);
+  const [showDoorModal, setShowDoorModal] = useState(false);
   const [product, setProduct] = useState<ConsultaProduct | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
@@ -155,6 +156,20 @@ export default function MainMenuPage({
     setErrorMessage("");
   };
 
+  const handleAbrirPuerta = async () => {
+    try {
+      showLoading();
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      await HttpClient.put(`${baseUrl}/access-control/door/open`, {});
+      setShowDoorModal(true);
+      setTimeout(() => setShowDoorModal(false), 4000);
+    } catch (error) {
+      console.error("❌ Error al abrir la puerta:", error);
+    } finally {
+      hideLoading();
+    }
+  };
+
   const handleAddToCart = async () => {
     if (!product) return;
     const barcode = product.codigo_barra;
@@ -220,7 +235,10 @@ export default function MainMenuPage({
         </div>
 
         {/* Botón inferior - Salir */}
-        <button className="bg-primary-600 text-white font-bold py-4 md:py-6 lg:py-8 xl:py-16 px-4 md:px-5 lg:px-6 xl:px-12 rounded-lg lg:rounded-xl xl:rounded-2xl shadow-2xl transition-colors duration-200 text-base md:text-xl lg:text-2xl xl:text-5xl w-full">
+        <button
+          onClick={handleAbrirPuerta}
+          className="bg-primary-600 text-white font-bold py-4 md:py-6 lg:py-8 xl:py-16 px-4 md:px-5 lg:px-6 xl:px-12 rounded-lg lg:rounded-xl xl:rounded-2xl shadow-2xl transition-colors duration-200 text-base md:text-xl lg:text-2xl xl:text-5xl w-full"
+        >
           Abrir la Puerta
         </button>
       </div>
@@ -303,6 +321,21 @@ export default function MainMenuPage({
             >
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+      {/* Modal Puerta Abierta */}
+      {showDoorModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40 p-4">
+          <div className="bg-white rounded-2xl p-6 xl:p-12 w-full max-w-sm xl:max-w-xl shadow-2xl flex flex-col items-center gap-4 xl:gap-8">
+            <div className="bg-green-100 rounded-full p-4 xl:p-6">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 xl:h-20 xl:w-20 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-xl xl:text-4xl font-bold text-gray-800 text-center">
+              ¡Puerta Abierta!
+            </h2>
           </div>
         </div>
       )}
