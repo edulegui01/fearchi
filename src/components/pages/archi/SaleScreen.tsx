@@ -393,8 +393,9 @@ export default function SaleScreen({
     try {
       showLoading();
       // Buscar producto por código de barras
+      const cantidadAcumulada = (productQuantitiesRef.current[barcode] || 0) + 1;
       const product: ScannedProduct | null =
-        await ProductService.getProductByBarcode(barcode);
+        await ProductService.getProductByBarcode(barcode, 1, cantidadAcumulada);
 
       if (product) {
         // Construir URL completa de la imagen
@@ -1018,9 +1019,11 @@ export default function SaleScreen({
 
   const handleIncrementQuantity = async (productId: string) => {
     try {
+      const cantidadAcumulada = (productQuantitiesRef.current[productId] || 1) + 1;
       const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: productId,
-        cantidad: 1,
+        cantidad_a_insertar: 1,
+        cantidad_acumulada: cantidadAcumulada,
       });
 
       // Actualizar cantidad y total del producto desde la respuesta
