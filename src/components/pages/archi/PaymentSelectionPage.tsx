@@ -4,6 +4,7 @@ import archiLogo from "../../../assets/archi_logo_al_paso.png";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useAlert } from "../../common/AlertContext";
+import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useLoading } from "../../common/LoadingContext";
 
 interface PaymentSelectionPageProps {
@@ -94,11 +95,10 @@ export default function PaymentSelectionPage({
     setPaymentStatus("loading");
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
       const endpoint =
         method === "tarjeta"
-          ? "/pos/ventas-aut/pago-tarjeta"
-          : "/pos/ventas-aut/pago-qr";
+          ? ARCHI_ENDPOINTS.pagoTarjeta
+          : ARCHI_ENDPOINTS.pagoQr;
       const facturaNro = getFacturaNro();
 
       const caja = getCaja();
@@ -119,7 +119,7 @@ export default function PaymentSelectionPage({
       let response: PaymentResponse;
       try {
         response = await HttpClient.post<PaymentResponse>(
-          `${baseUrl}${endpoint}`,
+          endpoint,
           {
             caja,
             facturaNro,
@@ -219,17 +219,16 @@ export default function PaymentSelectionPage({
 
   // Limpiar ticket y recrear factura
   const cleanAndRecreateInvoice = async () => {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
     const caja = getCaja();
 
     try {
       // 1. Limpiar ticket
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/ticket-clean`, { caja });
+      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja });
       console.log("✅ Ticket limpiado");
 
       // 2. Recrear factura con el cliente actual
       const documento = getClienteDocumento();
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/create-invoice`, {
+      await HttpClient.post(ARCHI_ENDPOINTS.createInvoice, {
         caja,
         operacion: 6,
         documento,

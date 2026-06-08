@@ -4,6 +4,7 @@ import { barcodeService } from "../../../services/BarcodeService";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
+import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 
 interface ConsultaProduct {
   codigo: string;
@@ -76,8 +77,7 @@ export default function MainMenuPage({
       }
 
       // Verificar POS Bancard
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-      await HttpClient.post(`${baseUrl}/bancard/verificar-conexion`, {});
+      await HttpClient.post(ARCHI_ENDPOINTS.bancardVerificarConexion, {});
       setIsPosConnected(true);
       hideLoading();
 
@@ -118,9 +118,8 @@ export default function MainMenuPage({
       try {
         showLoading();
         setErrorMessage("");
-        const baseUrl = import.meta.env.VITE_API_BASE_URL;
         const response = await HttpClient.get<ConsultaProduct>(
-          `${baseUrl}/pos/productos/consulta/${barcode}`,
+          ARCHI_ENDPOINTS.consultaProducto(barcode),
         );
         setProduct(response);
       } catch (error) {
@@ -159,8 +158,7 @@ export default function MainMenuPage({
   const handleAbrirPuerta = async () => {
     try {
       showLoading();
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-      await HttpClient.put(`${baseUrl}/access-control/door/open`, {});
+      await HttpClient.put(ARCHI_ENDPOINTS.abrirPuerta, {});
       setShowDoorModal(true);
       setTimeout(() => setShowDoorModal(false), 4000);
     } catch (error) {

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import archiLogo from "../../../assets/archi_logo_al_paso.png";
 import HttpClient from "../../../utils/httpClient";
 import { useLoading } from "../../common/LoadingContext";
+import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useAlert } from "../../common/AlertContext";
 import { ApiError } from "../../../utils/ApiError";
 import type { Product } from "../../../types";
@@ -47,11 +48,9 @@ export default function BagSelectionPage() {
     try {
       showLoading();
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
       // Hacer request al endpoint scan con el código de bolsa
       const bolsaProduct = await HttpClient.post<ScanProductResponse>(
-        `${baseUrl}/pos/productos/scan`,
+        ARCHI_ENDPOINTS.scanProducto,
         {
           scan: BOLSA_SCAN_CODE,
           cantidad: 1,
@@ -61,7 +60,7 @@ export default function BagSelectionPage() {
       if (bolsaProduct) {
         // Construir URL completa de la imagen
         const imagenUrl = bolsaProduct.imagen
-          ? `${baseUrl}${bolsaProduct.imagen}`
+          ? `${import.meta.env.VITE_API_BASE_URL}${bolsaProduct.imagen}`
           : "";
 
         // Mapear el producto de la API al formato local

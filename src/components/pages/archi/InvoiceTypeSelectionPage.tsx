@@ -5,6 +5,7 @@ import OnScreenKeyboard from "../../components/OnScreenKeyboard";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
+import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useAlert } from "../../common/AlertContext";
 import type { VentasAut } from "../../../types";
 
@@ -83,9 +84,8 @@ export default function InvoiceTypeSelectionPage({
   useEffect(() => {
     const fetchCaja = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL;
         const response = await HttpClient.get<{ caja: number }>(
-          `${baseUrl}/caja-config/caja`,
+          ARCHI_ENDPOINTS.cajaConfig,
         );
         setCajaValue(response.caja);
       } catch (error) {
@@ -163,7 +163,6 @@ export default function InvoiceTypeSelectionPage({
     try {
       setErrorMessage("");
       showLoading();
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
       const caja = cajaValue;
 
       if (caja === null) {
@@ -176,7 +175,7 @@ export default function InvoiceTypeSelectionPage({
       const clientResponse = await HttpClient.post<{
         nombre_cliente: string;
         documento: string;
-      }>(`${baseUrl}/pos/ventas-aut/find-client-details`, {
+      }>(ARCHI_ENDPOINTS.findClientDetails, {
         caja,
         operacion: 4,
         documento: "44444401-7",
@@ -184,7 +183,7 @@ export default function InvoiceTypeSelectionPage({
 
       // 3. Crear factura con el documento del cliente
       const invoiceResponse = await HttpClient.post<VentasAut>(
-        `${baseUrl}/pos/ventas-aut/create-invoice`,
+        ARCHI_ENDPOINTS.createInvoice,
         {
           caja,
           operacion: 6,
@@ -262,7 +261,6 @@ export default function InvoiceTypeSelectionPage({
 
     try {
       showLoading();
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
       const caja = cajaValue;
 
       if (caja === null) {
@@ -273,7 +271,7 @@ export default function InvoiceTypeSelectionPage({
 
       // Hacer petición POST para buscar datos del cliente
       const response = await HttpClient.post<VentasAut>(
-        `${baseUrl}/pos/ventas-aut/find-client-details`,
+        ARCHI_ENDPOINTS.findClientDetails,
         {
           caja,
           operacion: 4,
@@ -322,11 +320,9 @@ export default function InvoiceTypeSelectionPage({
     clientData: VentasAut,
   ) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
       // Hacer petición POST para crear la factura
       const invoiceResponse = await HttpClient.post<VentasAut>(
-        `${baseUrl}/pos/ventas-aut/create-invoice`,
+        ARCHI_ENDPOINTS.createInvoice,
         {
           caja,
           operacion: 6,
@@ -388,10 +384,8 @@ export default function InvoiceTypeSelectionPage({
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
       // Hacer POST para registrar el cliente
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/register-client`, {
+      await HttpClient.post(ARCHI_ENDPOINTS.registerClient, {
         caja: pendingCaja,
         operacion: 5,
         documento: pendingFullRuc,
@@ -400,7 +394,7 @@ export default function InvoiceTypeSelectionPage({
 
       // Crear factura con el cliente registrado
       const invoiceResponse = await HttpClient.post<VentasAut>(
-        `${baseUrl}/pos/ventas-aut/create-invoice`,
+        ARCHI_ENDPOINTS.createInvoice,
         {
           caja: Number(pendingCaja),
           operacion: 6,

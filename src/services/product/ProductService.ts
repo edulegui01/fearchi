@@ -1,5 +1,7 @@
 import HttpClient from '../../utils/httpClient';
 import type { ApiProduct, CreateProductDto, UpdateProductDto, ProductFilters, ProductResponse, ScannedProduct, Product } from '../../types';
+import { PRODUCT_ENDPOINTS } from '../../config/endpoints/products';
+import { ARCHI_ENDPOINTS } from '../../config/endpoints/archi';
 
 // Clase principal del servicio de productos
 class ProductService {
@@ -18,8 +20,7 @@ class ProductService {
       if (filters.page) queryParams.append('page', filters.page.toString());
       if (filters.limit) queryParams.append('limit', filters.limit.toString());
 
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api/${import.meta.env.VITE_API_VERSION}/products`;
-      const url = `${baseUrl}?${queryParams.toString()}`;
+      const url = `${PRODUCT_ENDPOINTS.base}?${queryParams.toString()}`;
       return await HttpClient.get<ProductResponse>(url);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -34,8 +35,7 @@ class ProductService {
    */
   static async getProductById(id: string): Promise<ApiProduct> {
     try {
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api/${import.meta.env.VITE_API_VERSION}/products`;
-      return await HttpClient.get<ApiProduct>(`${baseUrl}/${id}`);
+      return await HttpClient.get<ApiProduct>(PRODUCT_ENDPOINTS.byId(id));
     } catch (error) {
       console.error(`Error fetching product ${id}:`, error);
       throw error;
@@ -49,8 +49,7 @@ class ProductService {
    */
   static async createProduct(productData: CreateProductDto): Promise<ApiProduct> {
     try {
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api/${import.meta.env.VITE_API_VERSION}/products`;
-      return await HttpClient.post<ApiProduct>(baseUrl, productData);
+      return await HttpClient.post<ApiProduct>(PRODUCT_ENDPOINTS.base, productData);
     } catch (error) {
       console.error('Error creating product:', error);
       throw error;
@@ -65,8 +64,7 @@ class ProductService {
    */
   static async updateProduct(id: string, productData: UpdateProductDto): Promise<ApiProduct> {
     try {
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api/${import.meta.env.VITE_API_VERSION}/products`;
-      return await HttpClient.put<ApiProduct>(`${baseUrl}/${id}`, productData);
+      return await HttpClient.put<ApiProduct>(PRODUCT_ENDPOINTS.byId(id), productData);
     } catch (error) {
       console.error(`Error updating product ${id}:`, error);
       throw error;
@@ -81,8 +79,7 @@ class ProductService {
    */
   static async patchProduct(id: string, productData: Partial<UpdateProductDto>): Promise<ApiProduct> {
     try {
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api/${import.meta.env.VITE_API_VERSION}/products`;
-      return await HttpClient.patch<ApiProduct>(`${baseUrl}/${id}`, productData);
+      return await HttpClient.patch<ApiProduct>(PRODUCT_ENDPOINTS.byId(id), productData);
     } catch (error) {
       console.error(`Error patching product ${id}:`, error);
       throw error;
@@ -96,8 +93,7 @@ class ProductService {
    */
   static async deleteProduct(id: string): Promise<void> {
     try {
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}/api/${import.meta.env.VITE_API_VERSION}/products`;
-      await HttpClient.delete<void>(`${baseUrl}/${id}`);
+      await HttpClient.delete<void>(PRODUCT_ENDPOINTS.byId(id));
     } catch (error) {
       console.error(`Error deleting product ${id}:`, error);
       throw error;
@@ -173,9 +169,7 @@ class ProductService {
    */
   static async getProductByBarcode(barcode: string, cantidad: number = 1): Promise<ScannedProduct | null> {
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-      const url = `${baseUrl}/pos/productos/scan`;
-      return await HttpClient.post<ScannedProduct>(url, {
+      return await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: barcode,
         cantidad
       });
@@ -192,9 +186,7 @@ class ProductService {
    */
   static async getProductByBarcodeApi(barcode: string): Promise<Product | null> {
     try {
-      const baseUrl = `${import.meta.env.VITE_API_BASE_URL}`;
-      const url = `${baseUrl}/api/product/${barcode}`;
-      return await HttpClient.get<Product>(url);
+      return await HttpClient.get<Product>(PRODUCT_ENDPOINTS.byBarcode(barcode));
     } catch (error) {
       throw error;
     }

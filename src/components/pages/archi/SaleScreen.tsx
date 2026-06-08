@@ -8,6 +8,7 @@ import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
 import { useAlert } from "../../common/AlertContext";
+import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import type {
   Product,
   ApiProduct,
@@ -397,9 +398,7 @@ export default function SaleScreen({
 
       if (product) {
         // Construir URL completa de la imagen
-        const baseUrl =
-          import.meta.env.VITE_API_BASE_URL || "http://192.168.4.41:3000";
-        const imagenUrl = product.imagen ? `${baseUrl}${product.imagen}` : "";
+        const imagenUrl = product.imagen ? `${import.meta.env.VITE_API_BASE_URL}${product.imagen}` : "";
 
         // Mapear el producto de la API al formato local
         const mappedProduct: Product = {
@@ -410,6 +409,7 @@ export default function SaleScreen({
           sku: product.codigo_barras,
           imagen: imagenUrl,
           precio: product.precio,
+          total_venta: product.total_venta,
           peso: parseFloat(product.peso_gramos) || 0,
           es_pesable: parseFloat(product.peso_gramos) > 0,
           purchase_price: 0,
@@ -537,9 +537,8 @@ export default function SaleScreen({
       showLoading();
 
       // Consultar datos del producto
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
       const response = await HttpClient.get<ProductoConsultaResponse>(
-        `${baseUrl}/pos/productos/consulta/${barcode}`
+        ARCHI_ENDPOINTS.consultaProducto(barcode)
       );
 
       console.log("📦 Producto consultado:", response);
@@ -548,7 +547,7 @@ export default function SaleScreen({
       const productBarcode = response.codigo_barra || barcode;
 
       // Construir URL completa de la imagen
-      const imagenUrl = response.foto ? `${baseUrl}${response.foto}` : "";
+      const imagenUrl = response.foto ? `${import.meta.env.VITE_API_BASE_URL}${response.foto}` : "";
 
       // Crear producto con datos del endpoint
       const consultedProduct: Product = {
@@ -650,17 +649,16 @@ export default function SaleScreen({
 
   // Limpiar ticket y recrear factura (para manejo de errores)
   const cleanAndRecreateInvoice = async () => {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
     const caja = getCaja();
 
     try {
       // 1. Limpiar ticket
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/ticket-clean`, { caja });
+      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja });
       console.log("✅ Ticket limpiado");
 
       // 2. Recrear factura con el cliente actual
       const documento = invoiceData.ruc || "44444401-7";
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/create-invoice`, {
+      await HttpClient.post(ARCHI_ENDPOINTS.createInvoice, {
         caja,
         operacion: 6,
         documento,
@@ -673,7 +671,6 @@ export default function SaleScreen({
 
   // Insertar productos en el backend
   const insertProductsToBackend = async (): Promise<boolean> => {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
     const caja = getCaja();
 
     // Construir payload
@@ -697,7 +694,7 @@ export default function SaleScreen({
 
     try {
       const response = await HttpClient.post<InsertProductsResponse>(
-        `${baseUrl}/pos/ventas-aut/insertar-productos`,
+        ARCHI_ENDPOINTS.insertarProductos,
         payload
       );
 
@@ -813,9 +810,8 @@ export default function SaleScreen({
               isCallingWeightEndpointRef.current = true;
               setWeightValidationStatus("validating");
 
-              const baseUrl = import.meta.env.VITE_API_BASE_URL;
               HttpClient.post<ScanningPesoResponse>(
-                `${baseUrl}/scanning-peso`,
+                ARCHI_ENDPOINTS.scanningPeso,
                 { scanning: pending.codigo, peso_gramos: differenceGrams }
               ).then((response) => {
                 console.log("✅ /scanning-peso respuesta:", response);
@@ -986,10 +982,7 @@ export default function SaleScreen({
 
     try {
       // Limpiar ticket en el servidor
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/ticket-clean`, {
-        caja: 1,
-      });
+      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja: 1 });
       console.log("✅ Ticket limpiado en el servidor");
     } catch (error) {
       console.error("❌ Error al limpiar ticket:", error);
@@ -1019,10 +1012,8 @@ export default function SaleScreen({
 
   const handleIncrementQuantity = async (productId: string) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
       // Hacer request al endpoint scan para registrar el incremento
-      await HttpClient.post(`${baseUrl}/pos/productos/scan`, {
+      await HttpClient.post(ARCHI_ENDPOINTS.scanProducto, {
         scan: productId,
         cantidad: 1,
       });
@@ -1050,10 +1041,7 @@ export default function SaleScreen({
     setIsCancelling(true);
     setShowClearModal(false);
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/ticket-clean`, {
-        caja: 1,
-      });
+      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja: 1 });
       console.log("✅ Ticket limpiado en el servidor");
     } catch (error) {
       console.error("❌ Error al limpiar ticket:", error);

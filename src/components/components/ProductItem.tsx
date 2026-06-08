@@ -10,7 +10,7 @@ export default function ProductItem({
   onDecrement
 }: ProductItemProps) {
   const [isIncrementing, setIsIncrementing] = useState(false);
-  const total = product.precio * quantity;
+  const total = product.total_venta ?? product.precio * quantity;
   console.log('Product name:', product.name, 'Descripcion:', product.descripcion);
 
   const handleDelete = () => {

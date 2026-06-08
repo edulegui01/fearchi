@@ -24,6 +24,7 @@ import PriceCheckPageModern from "../pages/archi/PriceCheckPageModern";
 import PaymentSelectionPage from "../pages/archi/PaymentSelectionPage";
 import HttpClient from "../../utils/httpClient";
 import { useLoading } from "./LoadingContext";
+import { ARCHI_ENDPOINTS } from "../../config/endpoints/archi";
 import { InactivityProvider } from "./InactivityProvider";
 
 interface AppRouterProps {
@@ -47,16 +48,14 @@ function AppContent({
   const handleIniciarCompra = async () => {
     try {
       showLoading();
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
       // Obtener el valor de caja desde el backend
       const configResponse = await HttpClient.get<{ caja: string }>(
-        `${baseUrl}/caja-config/caja`
+        ARCHI_ENDPOINTS.cajaConfig
       );
       const caja = configResponse.caja;
 
       // Limpiar ticket antes de iniciar la compra
-      await HttpClient.post(`${baseUrl}/pos/ventas-aut/ticket-clean`, {
+      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, {
         caja: Number(caja),
       });
 
