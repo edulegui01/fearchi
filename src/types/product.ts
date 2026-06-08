@@ -7,7 +7,9 @@ export interface Product {
   sku: string;
   imagen: string;
   precio: number;
+  total?: number;
   total_venta?: number;
+  cantidad?: number;
   peso: number;
   es_pesable: boolean;
   purchase_price: number;
