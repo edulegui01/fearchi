@@ -413,7 +413,7 @@ export default function SaleScreen({
           total_venta: product.total_venta,
           cantidad: product.cantidad,
           peso: parseFloat(product.peso_gramos) || 0,
-          es_pesable: parseFloat(product.peso_gramos) > 0,
+          es_pesable: product.es_pesable ?? false,
           purchase_price: 0,
           tax: 0,
           stock: 0,
@@ -428,9 +428,13 @@ export default function SaleScreen({
           );
 
           if (existingProduct) {
-            // Si ya existe, solo incrementar cantidad (no modificar products)
+            // Si ya existe, actualizar cantidad y total desde la respuesta
             console.log("✅ Cantidad incrementada para:", mappedProduct.name);
-            return prevProducts;
+            return prevProducts.map((p) =>
+              p.cod_barra === mappedProduct.cod_barra
+                ? { ...p, cantidad: mappedProduct.cantidad, total: mappedProduct.total }
+                : p
+            );
           } else {
             // Si no existe, agregar a la lista
             console.log("✅ Producto agregado:", mappedProduct.name);
@@ -1014,13 +1018,20 @@ export default function SaleScreen({
 
   const handleIncrementQuantity = async (productId: string) => {
     try {
-      // Hacer request al endpoint scan para registrar el incremento
-      await HttpClient.post(ARCHI_ENDPOINTS.scanProducto, {
+      const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: productId,
         cantidad: 1,
       });
 
-      // Incrementar cantidad localmente
+      // Actualizar cantidad y total del producto desde la respuesta
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.cod_barra === productId
+            ? { ...p, cantidad: response.cantidad, total: response.total }
+            : p
+        )
+      );
+
       setProductQuantities((prev) => ({
         ...prev,
         [productId]: (prev[productId] || 1) + 1,

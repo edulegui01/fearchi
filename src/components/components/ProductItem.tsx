@@ -88,7 +88,7 @@ export default function ProductItem({
               >
                 −
               </button>
-              <div className="text-sm md:text-base lg:text-xl xl:text-3xl font-bold text-gray-600 bg-gray-50 rounded md:rounded-lg py-0.5 md:py-1 xl:py-2 w-6 md:w-8 lg:w-10 xl:w-16 text-center">{quantity}</div>
+              <div className="text-sm md:text-base lg:text-xl xl:text-3xl font-bold text-gray-600 bg-gray-50 rounded md:rounded-lg py-0.5 md:py-1 xl:py-2 w-6 md:w-8 lg:w-10 xl:w-16 text-center">{product.cantidad ?? quantity}</div>
               <button
                 onClick={handleIncrement}
                 disabled={isIncrementing}
