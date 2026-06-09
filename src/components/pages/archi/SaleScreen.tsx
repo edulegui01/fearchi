@@ -826,7 +826,7 @@ export default function SaleScreen({
                 // Actualizar peso del producto en la lista
                 setProducts(prev => prev.map(p =>
                   p.cod_barra === pending.cod_barra
-                    ? { ...p, peso: newPeso, es_pesable: true }
+                    ? { ...p, peso: newPeso }
                     : p
                 ));
                 pendingWeightProductRef.current = null;
