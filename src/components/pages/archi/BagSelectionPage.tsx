@@ -53,7 +53,8 @@ export default function BagSelectionPage() {
         ARCHI_ENDPOINTS.scanProducto,
         {
           scan: BOLSA_SCAN_CODE,
-          cantidad: 1,
+          cantidad_a_insertar: 1,
+          cantidad_acumulada: 1,
         }
       );
 
