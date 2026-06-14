@@ -34,7 +34,6 @@ export default function MainMenuPage({
 
   // Estados de conexión (se verifican bajo demanda)
   const [isScaleConnected, setIsScaleConnected] = useState(true);
-  const [isPosConnected, setIsPosConnected] = useState(true);
 
   // Verificar conexión con la balanza (intento de WebSocket con timeout)
   const checkScaleConnection = (): Promise<boolean> => {
@@ -62,35 +61,26 @@ export default function MainMenuPage({
     });
   };
 
-  // Verificar ambos dispositivos y proceder con la compra
+  // Verificar balanza y proceder con la compra
   const checkDevicesAndStartPurchase = async (barcode?: string) => {
-    try {
-      showLoading();
+    showLoading();
 
-      // Verificar balanza
-      const scaleOk = await checkScaleConnection();
-      setIsScaleConnected(scaleOk);
-      if (!scaleOk) {
-        console.error("❌ MainMenu: Balanza no disponible");
-        hideLoading();
-        return;
-      }
-
-      // Verificar POS Bancard
-      await HttpClient.post(ARCHI_ENDPOINTS.bancardVerificarConexion, {});
-      setIsPosConnected(true);
+    // Verificar balanza
+    const scaleOk = await checkScaleConnection();
+    setIsScaleConnected(scaleOk);
+    if (!scaleOk) {
+      console.error("❌ MainMenu: Balanza no disponible");
       hideLoading();
-
-      // Ambos dispositivos conectados, proceder con la compra
-      if (barcode) {
-        sessionStorage.setItem("pendingBarcode", barcode);
-      }
-      if (onIniciarCompra) onIniciarCompra();
-    } catch {
-      console.error("❌ MainMenu: POS Bancard no disponible");
-      setIsPosConnected(false);
-      hideLoading();
+      return;
     }
+
+    hideLoading();
+
+    // Balanza conectada, proceder con la compra
+    if (barcode) {
+      sessionStorage.setItem("pendingBarcode", barcode);
+    }
+    if (onIniciarCompra) onIniciarCompra();
   };
 
   // Escucha de escaneo en el menú principal (sin modal abierto)
@@ -189,29 +179,17 @@ export default function MainMenuPage({
           />
         </div>
 
-        {/* Banners de error de conexión */}
-        {(!isScaleConnected || !isPosConnected) && (
+        {/* Banner de error de conexión */}
+        {!isScaleConnected && (
           <div className="w-full flex flex-col gap-2 md:gap-3">
-            {!isScaleConnected && (
-              <div className="w-full bg-red-100 border-2 border-red-400 text-red-700 px-3 md:px-4 lg:px-5 xl:px-8 py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-center">
-                <p className="text-sm md:text-base lg:text-lg xl:text-3xl font-bold">
-                  Sin conexión con la balanza
-                </p>
-                <p className="text-xs md:text-sm lg:text-base xl:text-xl mt-1">
-                  Verifique la conexión de la balanza para iniciar una compra
-                </p>
-              </div>
-            )}
-            {!isPosConnected && (
-              <div className="w-full bg-red-100 border-2 border-red-400 text-red-700 px-3 md:px-4 lg:px-5 xl:px-8 py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-center">
-                <p className="text-sm md:text-base lg:text-lg xl:text-3xl font-bold">
-                  Sin conexión con el POS Bancard
-                </p>
-                <p className="text-xs md:text-sm lg:text-base xl:text-xl mt-1">
-                  No se pudo establecer conexión con el dispositivo de pago
-                </p>
-              </div>
-            )}
+            <div className="w-full bg-red-100 border-2 border-red-400 text-red-700 px-3 md:px-4 lg:px-5 xl:px-8 py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-center">
+              <p className="text-sm md:text-base lg:text-lg xl:text-3xl font-bold">
+                Sin conexión con la balanza
+              </p>
+              <p className="text-xs md:text-sm lg:text-base xl:text-xl mt-1">
+                Verifique la conexión de la balanza para iniciar una compra
+              </p>
+            </div>
           </div>
         )}
 

@@ -111,9 +111,10 @@ export default function ProductItem({
         </div>
 
         {/* Delete Button */}
-        <div className="flex-shrink-0">
+        <div className="hidden flex-shrink-0">
           <button
             onClick={handleDelete}
+            disabled
             className="inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 xl:w-14 xl:h-14 bg-red-500 hover:bg-red-600 text-white rounded-lg xl:rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-105 shadow-md xl:shadow-lg"
             title="Eliminar producto"
           >
