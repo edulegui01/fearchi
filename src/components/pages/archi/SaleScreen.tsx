@@ -1103,6 +1103,17 @@ export default function SaleScreen({
         cantidad_a_insertar: -1,
       });
 
+      if (response.cantidad <= 0) {
+        // El backend eliminó la línea (cantidad llegó a 0) → sacarla de la lista
+        setProducts((prev) => prev.filter((p) => p.cod_barra !== productId));
+        setProductQuantities((prev) => {
+          const newQuantities = { ...prev };
+          delete newQuantities[productId];
+          return newQuantities;
+        });
+        return;
+      }
+
       // Actualizar cantidad y total del producto desde la respuesta
       setProducts((prev) =>
         prev.map((p) =>
