@@ -61,33 +61,6 @@ interface ScanningPesoResponse {
   peso_gramos: number;
 }
 
-// Tipo para respuesta del endpoint /pos/ventas-aut/codigo-barra/{barcode}
-interface VentaPorCodigoBarra {
-  id: number;
-  zeta: number;
-  caja: number;
-  ticket: number;
-  operacion: number;
-  codigo: string;
-  codigo_barra: string;
-  cantidad: number;
-  precio: number;
-  total_venta: number;
-  tipo_cobro: number;
-  cod_condicion: number;
-  bin: string;
-  cod_tarjeta: number;
-  nro_boleta: string;
-  cod_autorizacion: string;
-  tipo_qr: string;
-  importe_cobrado: number;
-  estado: number;
-  obs: string;
-  documento: string;
-  nombre_cliente: string;
-  cantidad_asignada: number;
-}
-
 export default function SaleScreen({
   userName: propUserName = "Usuario",
   cedula = "",
@@ -135,20 +108,10 @@ export default function SaleScreen({
   const [errorProductBarcode, setErrorProductBarcode] = useState<string | null>(null);
   const [isInsertingProducts, setIsInsertingProducts] = useState(false);
 
-  // Estado y ref para "modo eliminar" (escanear un pesable para quitarlo del carrito)
-  const [isDeleteMode, setIsDeleteModeState] = useState(false);
-  const isDeleteModeRef = useRef(false);
-
   // Helper para actualizar state + ref de validación de peso
   const setWeightValidationPending = (value: boolean) => {
     isWeightValidationPendingRef.current = value;
     setIsWeightValidationPending(value);
-  };
-
-  // Helper para actualizar state + ref de modo eliminar
-  const setDeleteMode = (value: boolean) => {
-    isDeleteModeRef.current = value;
-    setIsDeleteModeState(value);
   };
 
   // Modo de operación: true = usar endpoint insertar-productos, false = lógica actual
@@ -428,12 +391,6 @@ export default function SaleScreen({
     // Bloquear escaneo mientras hay validación de peso pendiente (usa ref para evitar closure stale)
     if (isWeightValidationPendingRef.current) {
       console.log("⚠️ Validación de peso pendiente, ignorando escaneo");
-      return;
-    }
-
-    // Modo eliminar: el siguiente escaneo busca un pesable en el carrito y lo quita
-    if (isDeleteModeRef.current) {
-      await handleDeleteModeScan(barcode);
       return;
     }
 
@@ -854,10 +811,6 @@ export default function SaleScreen({
 
         setCurrentWeight(data.peso);
 
-        // Modo eliminar activo: el usuario puede estar retirando el producto de la
-        // balanza para escanearlo, no validar peso mientras esto ocurre
-        if (isDeleteModeRef.current) return;
-
         // --- Modo determinación de peso (producto con peso_gramos vacío) ---
         const pending = pendingWeightProductRef.current;
         if (pending) {
@@ -1080,18 +1033,22 @@ export default function SaleScreen({
     navigate("/menu");
   };
 
-  // Llama a la API para quitar el producto del ticket y lo borra del estado local
-  const removeProductFromCart = async (productId: string) => {
+  // Handler del botón de eliminar de cada fila: llama a la API para quitar el
+  // producto del ticket y lo borra del estado local. Para pesables se identifica
+  // por código interno (estable) y se resta el peso acumulado en el carrito;
+  // para no pesables se identifica por cod_barra y se resta la cantidad
+  const handleDeleteProduct = async (productId: string) => {
     const product = productsRef.current.find((p) => p.cod_barra === productId);
     if (!product) return;
 
+    const scanValue = product.es_pesable ? (product.codigo || product.cod_barra) : productId;
     const amountToRemove = product.es_pesable
       ? -(product.peso || 0)
       : -(product.cantidad ?? productQuantitiesRef.current[productId] ?? 1);
 
     try {
       await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
-        scan: productId,
+        scan: scanValue,
         cantidad_a_insertar: amountToRemove,
       });
     } catch (error) {
@@ -1112,79 +1069,6 @@ export default function SaleScreen({
       delete newQuantities[productId];
       return newQuantities;
     });
-  };
-
-  // Handler del botón de eliminar de cada fila: en pesables, arma el modo eliminar
-  // (espera un escaneo para confirmar cuál quitar) en vez de borrar directo
-  const handleDeleteProduct = async (productId: string) => {
-    const product = productsRef.current.find((p) => p.cod_barra === productId);
-    if (!product) return;
-
-    if (product.es_pesable) {
-      const turningOn = !isDeleteModeRef.current;
-      if (turningOn) {
-        // Pausar/cerrar la validación de peso mientras se espera el escaneo de eliminación
-        if (successTimeoutRef.current) {
-          clearTimeout(successTimeoutRef.current);
-          successTimeoutRef.current = null;
-        }
-        setShowWeightModal(false);
-        setWeightValidationStatus("idle");
-        setWeightError("");
-        setWeightValidationPending(false);
-      }
-      setDeleteMode(turningOn);
-      return;
-    }
-
-    await removeProductFromCart(productId);
-  };
-
-  // Modo eliminar: escanea el pesable directo contra /scan con cantidad_a_insertar: -1
-  // (el backend ya interpreta esto como eliminar la línea) y lo quita del estado local
-  const handleDeleteModeScan = async (barcode: string) => {
-    try {
-      showLoading();
-
-      const venta = await HttpClient.get<VentaPorCodigoBarra | null>(
-        ARCHI_ENDPOINTS.ventaPorCodigoBarra(barcode)
-      );
-
-      if (!venta) {
-        showAlert("No se encontró ningún registro para ese código de barras");
-        return;
-      }
-
-      await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
-        scan: venta.codigo,
-        cantidad_a_insertar: -venta.cantidad,
-      });
-
-      const matchedProduct = productsRef.current.find(
-        (p) => p.es_pesable && p.codigo === venta.codigo,
-      );
-
-      setProducts((prev) =>
-        prev.filter((p) => !(matchedProduct && p.cod_barra === matchedProduct.cod_barra)),
-      );
-      if (matchedProduct) {
-        setProductQuantities((prev) => {
-          const newQuantities = { ...prev };
-          delete newQuantities[matchedProduct.cod_barra];
-          return newQuantities;
-        });
-      }
-    } catch (error) {
-      console.error("Error al eliminar producto pesable por escaneo:", error);
-      if (error instanceof ApiError) {
-        showAlert(`Error: ${error.getUserFriendlyMessage()}`);
-      } else {
-        showAlert("Error al eliminar producto");
-      }
-    } finally {
-      hideLoading();
-      setDeleteMode(false);
-    }
   };
 
   const handleIncrementQuantity = async (productId: string) => {
@@ -1442,27 +1326,6 @@ export default function SaleScreen({
                 Confirmar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Modo Eliminar (pesables) */}
-      {isDeleteMode && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 xl:p-10 w-full max-w-md xl:max-w-xl shadow-2xl flex flex-col items-center gap-4 xl:gap-6">
-            <div className="w-16 h-16 xl:w-24 xl:h-24 bg-yellow-100 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 xl:w-12 xl:h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </div>
-            <h2 className="text-xl xl:text-3xl font-bold text-gray-900 text-center">Escanee el producto que desea eliminar</h2>
-            <p className="text-gray-600 xl:text-xl text-center">Puede retirar el producto de la balanza para escanearlo, la validación de peso está pausada.</p>
-            <button
-              onClick={() => setDeleteMode(false)}
-              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 xl:py-5 rounded-xl text-base xl:text-2xl font-semibold transition-colors"
-            >
-              Cancelar
-            </button>
           </div>
         </div>
       )}
