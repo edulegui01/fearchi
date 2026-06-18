@@ -61,6 +61,33 @@ interface ScanningPesoResponse {
   peso_gramos: number;
 }
 
+// Tipo para respuesta del endpoint /pos/ventas-aut/codigo-barra/{barcode}
+interface VentaPorCodigoBarra {
+  id: number;
+  zeta: number;
+  caja: number;
+  ticket: number;
+  operacion: number;
+  codigo: string;
+  codigo_barra: string;
+  cantidad: number;
+  precio: number;
+  total_venta: number;
+  tipo_cobro: number;
+  cod_condicion: number;
+  bin: string;
+  cod_tarjeta: number;
+  nro_boleta: string;
+  cod_autorizacion: string;
+  tipo_qr: string;
+  importe_cobrado: number;
+  estado: number;
+  obs: string;
+  documento: string;
+  nombre_cliente: string;
+  cantidad_asignada: number;
+}
+
 export default function SaleScreen({
   userName: propUserName = "Usuario",
   cedula = "",
@@ -1118,13 +1145,23 @@ export default function SaleScreen({
   const handleDeleteModeScan = async (barcode: string) => {
     try {
       showLoading();
-      const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
-        scan: barcode,
-        cantidad_a_insertar: -1,
+
+      const venta = await HttpClient.get<VentaPorCodigoBarra | null>(
+        ARCHI_ENDPOINTS.ventaPorCodigoBarra(barcode)
+      );
+
+      if (!venta) {
+        showAlert("No se encontró ningún registro para ese código de barras");
+        return;
+      }
+
+      await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
+        scan: venta.codigo,
+        cantidad_a_insertar: -venta.cantidad,
       });
 
       const matchedProduct = productsRef.current.find(
-        (p) => p.es_pesable && p.codigo === response.codigo,
+        (p) => p.es_pesable && p.codigo === venta.codigo,
       );
 
       setProducts((prev) =>

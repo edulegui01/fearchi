@@ -7,6 +7,7 @@ export const ARCHI_ENDPOINTS = {
   scanningPeso: `${BASE}/scanning-peso`,
 
   // Ventas automatizadas
+  ventaPorCodigoBarra: (barcode: string) => `${BASE}/pos/ventas-aut/codigo-barra/${barcode}`,
   ticketClean: `${BASE}/pos/ventas-aut/ticket-clean`,
   createInvoice: `${BASE}/pos/ventas-aut/create-invoice`,
   insertarProductos: `${BASE}/pos/ventas-aut/insertar-productos`,
