@@ -108,10 +108,20 @@ export default function SaleScreen({
   const [errorProductBarcode, setErrorProductBarcode] = useState<string | null>(null);
   const [isInsertingProducts, setIsInsertingProducts] = useState(false);
 
+  // Estado y ref para "modo eliminar" (escanear un pesable para quitarlo del carrito)
+  const [isDeleteMode, setIsDeleteModeState] = useState(false);
+  const isDeleteModeRef = useRef(false);
+
   // Helper para actualizar state + ref de validación de peso
   const setWeightValidationPending = (value: boolean) => {
     isWeightValidationPendingRef.current = value;
     setIsWeightValidationPending(value);
+  };
+
+  // Helper para actualizar state + ref de modo eliminar
+  const setDeleteMode = (value: boolean) => {
+    isDeleteModeRef.current = value;
+    setIsDeleteModeState(value);
   };
 
   // Modo de operación: true = usar endpoint insertar-productos, false = lógica actual
@@ -391,6 +401,12 @@ export default function SaleScreen({
     // Bloquear escaneo mientras hay validación de peso pendiente (usa ref para evitar closure stale)
     if (isWeightValidationPendingRef.current) {
       console.log("⚠️ Validación de peso pendiente, ignorando escaneo");
+      return;
+    }
+
+    // Modo eliminar: el siguiente escaneo busca un pesable en el carrito y lo quita
+    if (isDeleteModeRef.current) {
+      await handleDeleteModeScan(barcode);
       return;
     }
 
@@ -1066,6 +1082,37 @@ export default function SaleScreen({
     });
   };
 
+  // Modo eliminar: busca por código interno un pesable ya en el carrito y lo quita
+  const handleDeleteModeScan = async (barcode: string) => {
+    try {
+      showLoading();
+      const response = await HttpClient.get<ProductoConsultaResponse>(
+        ARCHI_ENDPOINTS.consultaProducto(barcode)
+      );
+
+      const matchedProduct = productsRef.current.find(
+        (p) => p.es_pesable && p.codigo === response.codigo,
+      );
+
+      if (!matchedProduct) {
+        showAlert("No se encontró ese producto pesable en el carrito");
+        return;
+      }
+
+      await handleDeleteProduct(matchedProduct.cod_barra);
+    } catch (error) {
+      console.error("Error al eliminar producto pesable por escaneo:", error);
+      if (error instanceof ApiError) {
+        showAlert(`Error: ${error.getUserFriendlyMessage()}`);
+      } else {
+        showAlert("Error al buscar el producto a eliminar");
+      }
+    } finally {
+      hideLoading();
+      setDeleteMode(false);
+    }
+  };
+
   const handleIncrementQuantity = async (productId: string) => {
     try {
       const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
@@ -1292,6 +1339,16 @@ export default function SaleScreen({
             className="w-full bg-gray-300 disabled:bg-gray-200 disabled:cursor-not-allowed text-gray-800 py-3 md:py-4 lg:py-5 xl:py-11 rounded-lg text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold transition-colors duration-200"
           >
             Cancelar
+          </button>
+
+          <button
+            onClick={() => setDeleteMode(!isDeleteMode)}
+            disabled={!isDeleteMode && !products.some((p) => p.es_pesable)}
+            className={`w-full disabled:bg-gray-200 disabled:cursor-not-allowed text-white py-3 md:py-4 lg:py-5 xl:py-11 rounded-lg text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold transition-colors duration-200 ${
+              isDeleteMode ? "bg-yellow-600 animate-pulse" : "bg-orange-500 hover:bg-orange-600"
+            }`}
+          >
+            {isDeleteMode ? "Escanee para quitar..." : "Quitar pesable"}
           </button>
         </div>
       </div>
