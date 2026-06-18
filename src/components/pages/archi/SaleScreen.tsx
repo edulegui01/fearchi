@@ -409,6 +409,7 @@ export default function SaleScreen({
         // Mapear el producto de la API al formato local
         const mappedProduct: Product = {
           cod_barra: product.codigo_barras,
+          codigo: product.codigo,
           descripcion: product.descripcion,
           category_id: 0,
           name: product.descripcion,
@@ -429,16 +430,27 @@ export default function SaleScreen({
 
         // Usar callback para acceder al estado actual de products (evita closure stale)
         setProducts((prevProducts) => {
+          // El código de barras de un pesable se regenera con el peso en cada lectura,
+          // por eso la coincidencia se hace por código interno (estable) cuando está disponible
           const existingProduct = prevProducts.find(
-            (p) => p.cod_barra === mappedProduct.cod_barra,
+            (p) =>
+              (mappedProduct.codigo && p.codigo === mappedProduct.codigo) ||
+              p.cod_barra === mappedProduct.cod_barra,
           );
 
           if (existingProduct) {
-            // Si ya existe, actualizar cantidad, peso y total desde la respuesta
+            // Si ya existe, actualizar cod_barra (puede haber cambiado para pesables), cantidad, peso y total desde la respuesta
             console.log("✅ Cantidad incrementada para:", mappedProduct.name);
             return prevProducts.map((p) =>
-              p.cod_barra === mappedProduct.cod_barra
-                ? { ...p, cantidad: mappedProduct.cantidad, peso: mappedProduct.peso, total: mappedProduct.total }
+              p === existingProduct
+                ? {
+                    ...p,
+                    cod_barra: mappedProduct.cod_barra,
+                    cantidad: mappedProduct.cantidad,
+                    peso: mappedProduct.peso,
+                    total: mappedProduct.total,
+                    total_venta: mappedProduct.total_venta,
+                  }
                 : p
             );
           } else {
@@ -1201,7 +1213,7 @@ export default function SaleScreen({
               <div className="space-y-1 md:space-y-2 lg:space-y-2 xl:space-y-4">
                 {products.map((product, index) => (
                   <ProductItem
-                    key={product.cod_barra || index}
+                    key={product.codigo || product.cod_barra || index}
                     product={product}
                     index={index}
                     quantity={productQuantities[product.cod_barra] || 1}

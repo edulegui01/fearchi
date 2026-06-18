@@ -10,6 +10,7 @@ export default function ProductItem({
   onDecrement
 }: ProductItemProps) {
   const [isIncrementing, setIsIncrementing] = useState(false);
+  const [isDecrementing, setIsDecrementing] = useState(false);
   const subtotal = product.total ?? product.precio * quantity;
   console.log('Product name:', product.name, 'Descripcion:', product.descripcion);
 
@@ -27,9 +28,13 @@ export default function ProductItem({
     }
   };
 
-  const handleDecrement = () => {
-    if (quantity > 1) {
-      onDecrement?.(product.cod_barra);
+  const handleDecrement = async () => {
+    if (isDecrementing || quantity <= 1) return;
+    setIsDecrementing(true);
+    try {
+      await onDecrement?.(product.cod_barra);
+    } finally {
+      setIsDecrementing(false);
     }
   };
 
@@ -83,10 +88,10 @@ export default function ProductItem({
             <>
               <button
                 onClick={handleDecrement}
-                disabled={quantity <= 1}
+                disabled={quantity <= 1 || isDecrementing}
                 className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 xl:w-10 xl:h-10 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed text-gray-700 rounded md:rounded-lg text-xs md:text-sm lg:text-base xl:text-2xl font-bold transition-colors duration-200 flex items-center justify-center"
               >
-                −
+                {isDecrementing ? "..." : "−"}
               </button>
               <div className="text-sm md:text-base lg:text-xl xl:text-3xl font-bold text-gray-600 bg-gray-50 rounded md:rounded-lg py-0.5 md:py-1 xl:py-2 w-6 md:w-8 lg:w-10 xl:w-16 text-center">{product.cantidad ?? quantity}</div>
               <button

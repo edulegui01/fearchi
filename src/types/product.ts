@@ -1,6 +1,7 @@
 // Tipos para productos - SCO App
 export interface Product {
   cod_barra: string;
+  codigo?: string;
   descripcion: string;
   category_id: number;
   name: string;
