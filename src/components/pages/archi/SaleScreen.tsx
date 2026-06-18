@@ -1113,30 +1113,36 @@ export default function SaleScreen({
     await removeProductFromCart(productId);
   };
 
-  // Modo eliminar: busca por código interno un pesable ya en el carrito y lo quita
+  // Modo eliminar: escanea el pesable directo contra /scan con cantidad_a_insertar: -1
+  // (el backend ya interpreta esto como eliminar la línea) y lo quita del estado local
   const handleDeleteModeScan = async (barcode: string) => {
     try {
       showLoading();
-      const response = await HttpClient.get<ProductoConsultaResponse>(
-        ARCHI_ENDPOINTS.consultaProducto(barcode)
-      );
+      const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
+        scan: barcode,
+        cantidad_a_insertar: -1,
+      });
 
       const matchedProduct = productsRef.current.find(
         (p) => p.es_pesable && p.codigo === response.codigo,
       );
 
-      if (!matchedProduct) {
-        showAlert("No se encontró ese producto pesable en el carrito");
-        return;
+      setProducts((prev) =>
+        prev.filter((p) => !(matchedProduct && p.cod_barra === matchedProduct.cod_barra)),
+      );
+      if (matchedProduct) {
+        setProductQuantities((prev) => {
+          const newQuantities = { ...prev };
+          delete newQuantities[matchedProduct.cod_barra];
+          return newQuantities;
+        });
       }
-
-      await removeProductFromCart(matchedProduct.cod_barra);
     } catch (error) {
       console.error("Error al eliminar producto pesable por escaneo:", error);
       if (error instanceof ApiError) {
         showAlert(`Error: ${error.getUserFriendlyMessage()}`);
       } else {
-        showAlert("Error al buscar el producto a eliminar");
+        showAlert("Error al eliminar producto");
       }
     } finally {
       hideLoading();
