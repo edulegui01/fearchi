@@ -84,9 +84,8 @@ export interface ScannedProduct {
   descripcion: string;
   descripcion_producto?: string;
   descripcion_corta?: string;
-  peso_gramos: string;
-  es_pesable?: boolean;
-  pesable?: number;
+  peso: string;
+  es_pesable: boolean;
   nivel3?: number;
   cantidad: number;
   total_venta: number;

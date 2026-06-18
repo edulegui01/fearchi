@@ -167,12 +167,11 @@ class ProductService {
    * @returns Promise con el producto escaneado o null si no se encuentra
    * @throws ApiError con información detallada del error si es 404 o cualquier otro error
    */
-  static async getProductByBarcode(barcode: string, cantidad_a_insertar: number = 1, cantidad_acumulada: number = 1): Promise<ScannedProduct | null> {
+  static async getProductByBarcode(barcode: string, cantidad_a_insertar: number = 1): Promise<ScannedProduct | null> {
     try {
       return await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: barcode,
-        cantidad_a_insertar,
-        cantidad_acumulada
+        cantidad_a_insertar
       });
     } catch (error) {
       throw error;

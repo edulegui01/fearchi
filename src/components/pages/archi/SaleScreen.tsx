@@ -133,12 +133,18 @@ export default function SaleScreen({
   // useEffect para monitoreo continuo de peso
   // Se ejecuta cada vez que cambian products o productQuantities
   useEffect(() => {
-    let totalWeightKg = 0;
+    let totalWeightGrams = 0;
     for (const product of products) {
-      const qty = productQuantities[product.cod_barra] || 1;
-      totalWeightKg += (product.peso || 0) * qty;
+      if (product.es_pesable) {
+        // product.peso ya es el total acumulado en kg, no multiplicar por qty
+        totalWeightGrams += (product.peso || 0) * 1000;
+      } else {
+        // product.peso es el peso por unidad en gramos (determinado vía balanza)
+        const qty = productQuantities[product.cod_barra] || 1;
+        totalWeightGrams += (product.peso || 0) * qty;
+      }
     }
-    totalWeightKg = totalWeightKg / 1000; // gramos a kg
+    const totalWeightKg = totalWeightGrams / 1000; // gramos a kg
 
     expectedWeightRef.current = totalWeightKg;
     setExpectedWeight(totalWeightKg);
@@ -393,9 +399,8 @@ export default function SaleScreen({
     try {
       showLoading();
       // Buscar producto por código de barras
-      const cantidadAcumulada = (productQuantitiesRef.current[barcode] || 0) + 1;
       const product: ScannedProduct | null =
-        await ProductService.getProductByBarcode(barcode, 1, cantidadAcumulada);
+        await ProductService.getProductByBarcode(barcode, 1);
 
       if (product) {
         // Construir URL completa de la imagen
@@ -413,8 +418,8 @@ export default function SaleScreen({
           total: product.total,
           total_venta: product.total_venta,
           cantidad: product.cantidad,
-          peso: parseFloat(product.peso_gramos) || 0,
-          es_pesable: product.es_pesable ?? false,
+          peso: parseFloat(product.peso) || 0,
+          es_pesable: product.es_pesable,
           purchase_price: 0,
           tax: 0,
           stock: 0,
@@ -429,11 +434,11 @@ export default function SaleScreen({
           );
 
           if (existingProduct) {
-            // Si ya existe, actualizar cantidad y total desde la respuesta
+            // Si ya existe, actualizar cantidad, peso y total desde la respuesta
             console.log("✅ Cantidad incrementada para:", mappedProduct.name);
             return prevProducts.map((p) =>
               p.cod_barra === mappedProduct.cod_barra
-                ? { ...p, cantidad: mappedProduct.cantidad, total: mappedProduct.total }
+                ? { ...p, cantidad: mappedProduct.cantidad, peso: mappedProduct.peso, total: mappedProduct.total }
                 : p
             );
           } else {
@@ -460,9 +465,9 @@ export default function SaleScreen({
           [mappedProduct.cod_barra]: (prev[mappedProduct.cod_barra] || 0) + 1,
         }));
 
-        // Detectar peso_gramos vacío en producto nuevo → determinar peso con balanza
+        // Detectar peso vacío en producto nuevo no pesable → determinar peso con balanza
         const isNewProduct = !productsRef.current.some(p => p.cod_barra === mappedProduct.cod_barra);
-        if (isNewProduct && (product.peso_gramos === "" || product.peso_gramos === undefined || product.peso_gramos === null)) {
+        if (isNewProduct && (product.peso === "" || product.peso === undefined || product.peso === null)) {
           console.log("⚖️ Producto con peso desconocido, iniciando determinación de peso:", product.codigo);
           pendingWeightProductRef.current = { cod_barra: mappedProduct.cod_barra, codigo: product.codigo };
           setShowWeightModal(true);
@@ -804,8 +809,14 @@ export default function SaleScreen({
             let knownWeightGrams = 0;
             for (const p of prods) {
               if (p.cod_barra !== pending.cod_barra) {
-                const qty = qtys[p.cod_barra] || 1;
-                knownWeightGrams += (p.peso || 0) * qty;
+                if (p.es_pesable) {
+                  // p.peso ya es el total acumulado en kg, no multiplicar por qty
+                  knownWeightGrams += (p.peso || 0) * 1000;
+                } else {
+                  // p.peso es el peso por unidad (determinado vía balanza)
+                  const qty = qtys[p.cod_barra] || 1;
+                  knownWeightGrams += (p.peso || 0) * qty;
+                }
               }
             }
             const knownWeightKg = knownWeightGrams / 1000;
@@ -938,6 +949,10 @@ export default function SaleScreen({
     const currentQuantities = productQuantitiesRef.current;
 
     const totalAmount = currentProducts.reduce((total, product) => {
+      if (product.total !== undefined) {
+        console.log(`💰 Producto: ${product.descripcion}, total: ${product.total}`);
+        return total + product.total;
+      }
       const quantity = currentQuantities[product.cod_barra] || 1;
       console.log(`💰 Producto: ${product.descripcion}, precio: ${product.precio}, cantidad: ${quantity}, subtotal: ${product.precio * quantity}`);
       return total + product.precio * quantity;
@@ -1006,9 +1021,31 @@ export default function SaleScreen({
     navigate("/menu");
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
+    const product = productsRef.current.find((p) => p.cod_barra === productId);
+    if (!product) return;
+
+    const amountToRemove = product.es_pesable
+      ? -(product.peso || 0)
+      : -(product.cantidad ?? productQuantitiesRef.current[productId] ?? 1);
+
+    try {
+      await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
+        scan: productId,
+        cantidad_a_insertar: amountToRemove,
+      });
+    } catch (error) {
+      console.error("Error al eliminar producto:", error);
+      if (error instanceof ApiError) {
+        showAlert(`Error: ${error.message}`);
+      } else {
+        showAlert("Error al eliminar producto");
+      }
+      return;
+    }
+
     setProducts((prev) =>
-      prev.filter((product) => product.cod_barra !== productId),
+      prev.filter((p) => p.cod_barra !== productId),
     );
     setProductQuantities((prev) => {
       const newQuantities = { ...prev };
@@ -1019,11 +1056,9 @@ export default function SaleScreen({
 
   const handleIncrementQuantity = async (productId: string) => {
     try {
-      const cantidadAcumulada = (productQuantitiesRef.current[productId] || 1) + 1;
       const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: productId,
         cantidad_a_insertar: 1,
-        cantidad_acumulada: cantidadAcumulada,
       });
 
       // Actualizar cantidad y total del producto desde la respuesta
@@ -1049,8 +1084,34 @@ export default function SaleScreen({
     }
   };
 
-  const handleDecrementQuantity = (_productId: string) => {
-    setShowClearModal(true);
+  const handleDecrementQuantity = async (productId: string) => {
+    try {
+      const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
+        scan: productId,
+        cantidad_a_insertar: -1,
+      });
+
+      // Actualizar cantidad y total del producto desde la respuesta
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.cod_barra === productId
+            ? { ...p, cantidad: response.cantidad, total: response.total }
+            : p
+        )
+      );
+
+      setProductQuantities((prev) => ({
+        ...prev,
+        [productId]: Math.max((prev[productId] || 1) - 1, 1),
+      }));
+    } catch (error) {
+      console.error("Error al decrementar cantidad:", error);
+      if (error instanceof ApiError) {
+        showAlert(`Error: ${error.message}`);
+      } else {
+        showAlert("Error al decrementar cantidad");
+      }
+    }
   };
 
   const handleConfirmClear = async () => {
@@ -1165,6 +1226,7 @@ export default function SaleScreen({
                 ₲
                 {products
                   .reduce((total, product) => {
+                    if (product.total !== undefined) return total + product.total;
                     const quantity = productQuantities[product.cod_barra] || 1;
                     return total + product.precio * quantity;
                   }, 0)

@@ -17,7 +17,8 @@ interface ScanProductResponse {
   descripcion: string;
   precio: number;
   total: number;
-  peso_gramos?: string;
+  peso?: string;
+  es_pesable?: boolean;
   cantidad: number;
   total_venta: number;
   imagen?: string;
@@ -54,7 +55,6 @@ export default function BagSelectionPage() {
         {
           scan: BOLSA_SCAN_CODE,
           cantidad_a_insertar: 1,
-          cantidad_acumulada: 1,
         }
       );
 
@@ -73,8 +73,8 @@ export default function BagSelectionPage() {
           sku: bolsaProduct.codigo_barras,
           imagen: imagenUrl,
           precio: bolsaProduct.precio,
-          peso: parseFloat(bolsaProduct.peso_gramos || "0") || 0,
-          es_pesable: false,
+          peso: parseFloat(bolsaProduct.peso || "0") || 0,
+          es_pesable: bolsaProduct.es_pesable ?? false,
           purchase_price: 0,
           tax: 0,
           stock: 0,

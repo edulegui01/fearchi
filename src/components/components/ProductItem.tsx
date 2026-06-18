@@ -77,7 +77,7 @@ export default function ProductItem({
         <div className="flex items-center justify-center flex-shrink-0 w-16 md:w-20 lg:w-24 xl:w-36 gap-1 md:gap-1.5 xl:gap-2">
           {product.es_pesable ? (
             <div className="text-sm md:text-base lg:text-xl xl:text-3xl font-bold text-gray-600 bg-gray-50 rounded md:rounded-lg py-0.5 md:py-1 xl:py-2 w-full text-center">
-              {product.peso}g
+              {product.peso}kg
             </div>
           ) : (
             <>
@@ -111,10 +111,9 @@ export default function ProductItem({
         </div>
 
         {/* Delete Button */}
-        <div className="hidden flex-shrink-0">
+        <div className="flex-shrink-0">
           <button
             onClick={handleDelete}
-            disabled
             className="inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 xl:w-14 xl:h-14 bg-red-500 hover:bg-red-600 text-white rounded-lg xl:rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 hover:scale-105 shadow-md xl:shadow-lg"
             title="Eliminar producto"
           >
