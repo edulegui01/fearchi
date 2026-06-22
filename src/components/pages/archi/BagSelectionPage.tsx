@@ -5,6 +5,7 @@ import HttpClient from "../../../utils/httpClient";
 import { useLoading } from "../../common/LoadingContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useAlert } from "../../common/AlertContext";
+import { useLanguage } from "../../common/LanguageContext";
 import { ApiError } from "../../../utils/ApiError";
 import type { Product } from "../../../types";
 
@@ -40,6 +41,7 @@ export default function BagSelectionPage() {
   const locationState = location.state as LocationState;
   const { showLoading, hideLoading } = useLoading();
   const { showAlert } = useAlert();
+  const { t } = useLanguage();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleSi = async () => {
@@ -105,7 +107,7 @@ export default function BagSelectionPage() {
         });
       } else {
         hideLoading();
-        showAlert("No se encontró el producto bolsa en el sistema", "warning");
+        showAlert(t("bagSelection.bagNotFound"), "warning");
         // Navegar sin bolsa si no se encuentra
         navigateToSale();
       }
@@ -113,9 +115,9 @@ export default function BagSelectionPage() {
       console.error("Error al buscar producto bolsa:", error);
       hideLoading();
       if (error instanceof ApiError) {
-        showAlert(`Error al agregar bolsa: ${error.message}`, "warning");
+        showAlert(t("bagSelection.addBagErrorWithMessage", { message: error.message }), "warning");
       } else {
-        showAlert("Error al agregar bolsa. Continuando sin ella.", "warning");
+        showAlert(t("bagSelection.addBagErrorGeneric"), "warning");
       }
       // Navegar sin bolsa si hay error
       navigateToSale();
@@ -156,7 +158,7 @@ export default function BagSelectionPage() {
 
         {/* Título */}
         <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-6xl font-bold text-primary-600 text-center mb-2 md:mb-3 lg:mb-4 xl:mb-8">
-          ¿Querés bolsa?
+          {t("bagSelection.title")}
         </h1>
 
         {/* Opciones */}
@@ -184,7 +186,7 @@ export default function BagSelectionPage() {
                 />
               </svg>
             </div>
-            <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">Sí</span>
+            <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">{t("common.si")}</span>
           </button>
 
           {/* Opción No */}
@@ -210,7 +212,7 @@ export default function BagSelectionPage() {
                 />
               </svg>
             </div>
-            <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-gray-600">No</span>
+            <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-gray-600">{t("common.no")}</span>
           </button>
         </div>
 
@@ -220,7 +222,7 @@ export default function BagSelectionPage() {
           disabled={isProcessing}
           className="mt-2 md:mt-3 lg:mt-4 xl:mt-8 w-full bg-gray-300 disabled:opacity-50 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 px-6 md:px-8 lg:px-10 xl:px-16 rounded-lg xl:rounded-xl shadow-lg transition-colors duration-200 text-base md:text-lg lg:text-xl xl:text-3xl"
         >
-          Volver
+          {t("common.volver")}
         </button>
       </div>
     </div>

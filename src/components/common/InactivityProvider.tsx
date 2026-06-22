@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useLanguage } from "./LanguageContext";
 
 const INACTIVITY_TIMEOUT = parseInt(import.meta.env.VITE_INACTIVITY_TIMEOUT || "60000", 10);
 const EXCLUDED_PATHS = ["/menu", "/login", "/"];
@@ -7,6 +8,7 @@ const EXCLUDED_PATHS = ["/menu", "/login", "/"];
 export function InactivityProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { resetLanguage } = useLanguage();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isExcluded = EXCLUDED_PATHS.includes(location.pathname);
@@ -17,8 +19,9 @@ export function InactivityProvider({ children }: { children: React.ReactNode }) 
     sessionStorage.removeItem("invoiceData");
     sessionStorage.removeItem("pendingBarcode");
     sessionStorage.removeItem("priceCheckProducts");
+    resetLanguage();
     navigate("/menu");
-  }, [navigate]);
+  }, [navigate, resetLanguage]);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) {

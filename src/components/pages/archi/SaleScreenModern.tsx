@@ -6,11 +6,13 @@ import { barcodeService } from '../../../services/BarcodeService';
 import ProductService from '../../../services/product/ProductService';
 import { ApiError } from '../../../utils/ApiError';
 import type { Product, ApiProduct, ProductQuantities, LocationState, UserProps, ScannedProduct } from '../../../types';
+import { useLanguage } from "../../common/LanguageContext";
 
 export default function SaleScreenModern({ userName: propUserName = "Usuario", cedula: _cedula = "" }: UserProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as LocationState;
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productQuantities, setProductQuantities] = useState<ProductQuantities>({});
@@ -146,9 +148,9 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
-        alert(error.response?.message || `Producto no encontrado`);
+        alert(error.response?.message || t("saleScreen.productNotFound"));
       } else {
-        alert('Error al buscar el producto');
+        alert(t("priceCheck.searchError"));
       }
     }
   };
@@ -202,7 +204,7 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
             <h1 className="text-base md:text-lg lg:text-3xl xl:text-6xl font-black text-primary-600">{userName}</h1>
             <div className="flex items-center justify-center gap-1 md:gap-2">
               <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-gray-600 font-semibold text-xs md:text-sm lg:text-sm xl:text-base">Sistema Activo</span>
+              <span className="text-gray-600 font-semibold text-xs md:text-sm lg:text-sm xl:text-base">{t("saleScreen.systemActive")}</span>
             </div>
           </div>
         </div>
@@ -217,8 +219,8 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                   </svg>
                 </div>
-                <p className="text-primary-600 text-lg md:text-xl lg:text-2xl xl:text-5xl font-black">Escanee los productos</p>
-                <p className="text-gray-500 text-sm md:text-base lg:text-lg xl:text-2xl">Listos para recibir códigos de barras</p>
+                <p className="text-primary-600 text-lg md:text-xl lg:text-2xl xl:text-5xl font-black">{t("saleScreen.scanProductsTitle")}</p>
+                <p className="text-gray-500 text-sm md:text-base lg:text-lg xl:text-2xl">{t("saleScreen.scanProductsSubtitle")}</p>
               </div>
             </div>
           ) : (
@@ -240,7 +242,7 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
         <div className="bg-primary-600 rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl p-2 md:p-3 lg:p-4 xl:p-8 mb-1 md:mb-2 lg:mb-3 xl:mb-6 flex-shrink-0">
           <div className="flex justify-between items-center text-white">
             <div>
-              <div className="text-primary-100 text-[10px] md:text-xs lg:text-xs xl:text-sm font-bold uppercase">Total a Pagar</div>
+              <div className="text-primary-100 text-[10px] md:text-xs lg:text-xs xl:text-sm font-bold uppercase">{t("saleScreen.totalToPay")}</div>
               <div className="text-lg md:text-xl lg:text-3xl xl:text-6xl font-black">
                 ₲{products.reduce((total, product) => {
                   return total + (product.precio * (productQuantities[product.cod_barra] || 1));
@@ -248,7 +250,7 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
               </div>
             </div>
             <div className="text-right">
-              <div className="text-primary-100 text-[10px] md:text-xs lg:text-xs xl:text-sm font-semibold">Artículos</div>
+              <div className="text-primary-100 text-[10px] md:text-xs lg:text-xs xl:text-sm font-semibold">{t("saleScreen.items")}</div>
               <div className="text-base md:text-lg lg:text-2xl xl:text-4xl font-black">{products.length}</div>
             </div>
           </div>
@@ -261,13 +263,13 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
             disabled={products.length === 0}
             className="flex-1 bg-primary-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 md:py-4 lg:py-5 xl:py-12 rounded-xl lg:rounded-2xl xl:rounded-3xl text-lg md:text-xl lg:text-2xl xl:text-5xl font-black shadow-2xl transition-all duration-200 active:scale-95"
           >
-            Pagar
+            {t("saleScreen.pay")}
           </button>
           <button
             onClick={handleCancelar}
             className="flex-1 bg-gray-300 text-gray-800 py-3 md:py-4 lg:py-5 xl:py-12 rounded-xl lg:rounded-2xl xl:rounded-3xl text-lg md:text-xl lg:text-2xl xl:text-5xl font-black shadow-2xl transition-all duration-200 active:scale-95"
           >
-            Cancelar
+            {t("saleScreen.cancel")}
           </button>
         </div>
       </div>

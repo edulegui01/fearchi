@@ -6,6 +6,7 @@ import { ApiError } from "../../../utils/ApiError";
 import { useAlert } from "../../common/AlertContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useLoading } from "../../common/LoadingContext";
+import { useLanguage } from "../../common/LanguageContext";
 
 interface PaymentSelectionPageProps {
   onBack?: () => void;
@@ -47,6 +48,7 @@ export default function PaymentSelectionPage({
   const location = useLocation();
   const { showAlert } = useAlert();
   const { showLoading, hideLoading } = useLoading();
+  const { t } = useLanguage();
 
   // Modo de operación desde .env
   const useInsertProductsMode =
@@ -133,7 +135,7 @@ export default function PaymentSelectionPage({
 
       setPaymentResult({
         success: true,
-        message: response.mensajeDisplay || "Pago realizado con éxito",
+        message: response.mensajeDisplay || t("paymentSelection.paymentSuccessDefault"),
         codigoAutorizacion: response.codigoAutorizacion,
         mensajeDisplay: response.mensajeDisplay,
         nombreCliente: response.nombreCliente,
@@ -158,7 +160,7 @@ export default function PaymentSelectionPage({
     } catch (error) {
       console.error("Error en el pago:", error);
 
-      let errorMessage = "Error al procesar el pago";
+      let errorMessage = t("paymentSelection.paymentErrorDefault");
       if (error instanceof ApiError) {
         errorMessage = error.getUserFriendlyMessage();
       }
@@ -268,7 +270,7 @@ export default function PaymentSelectionPage({
 
         {/* Título */}
         <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-6xl font-bold text-primary-600 text-center mb-2 md:mb-3 lg:mb-4 xl:mb-8">
-          ¿Cómo preferís pagar?
+          {t("paymentSelection.title")}
         </h1>
 
         {/* Opciones de pago */}
@@ -296,10 +298,10 @@ export default function PaymentSelectionPage({
               </svg>
             </div>
             <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">
-              Tarjeta
+              {t("paymentSelection.cardLabel")}
             </span>
             <span className="text-xs md:text-sm lg:text-lg xl:text-2xl text-gray-500">
-              Débito o Crédito
+              {t("paymentSelection.cardSubtitle")}
             </span>
           </button>
 
@@ -326,10 +328,10 @@ export default function PaymentSelectionPage({
               </svg>
             </div>
             <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">
-              Código QR
+              {t("paymentSelection.qrLabel")}
             </span>
             <span className="text-xs md:text-sm lg:text-lg xl:text-2xl text-gray-500">
-              Billetera digital
+              {t("paymentSelection.qrSubtitle")}
             </span>
           </button>
         </div>
@@ -339,7 +341,7 @@ export default function PaymentSelectionPage({
           onClick={handleBack}
           className="mt-2 md:mt-3 lg:mt-4 xl:mt-8 w-full bg-gray-300 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 px-6 md:px-8 lg:px-10 xl:px-16 rounded-lg xl:rounded-xl shadow-lg transition-colors duration-200 text-base md:text-lg lg:text-xl xl:text-3xl"
         >
-          Volver
+          {t("common.volver")}
         </button>
       </div>
 
@@ -390,15 +392,15 @@ export default function PaymentSelectionPage({
                 {/* Mensaje según método de pago */}
                 <h2 className="text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold text-primary-600 mb-3 md:mb-4 lg:mb-5 xl:mb-6 text-center">
                   {paymentMethod === "tarjeta"
-                    ? "Acerque la tarjeta al POS"
-                    : "Escanee el código QR"}
+                    ? t("paymentSelection.approachCard")
+                    : t("paymentSelection.scanQr")}
                 </h2>
 
                 {/* Spinner de carga */}
                 <div className="w-10 h-10 md:w-11 md:h-11 lg:w-12 lg:h-12 xl:w-16 xl:h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-500 mt-3 md:mt-4 lg:mt-5 xl:mt-6">
-                  Procesando pago...
+                  {t("paymentSelection.processingPayment")}
                 </p>
               </>
             )}
@@ -435,14 +437,14 @@ export default function PaymentSelectionPage({
                     </p>
                     {paymentResult.nroBoleta && (
                       <p className="text-xs md:text-sm lg:text-sm xl:text-lg text-gray-500">
-                        Boleta: {paymentResult.nroBoleta}
+                        {t("paymentSelection.receiptLabel", { number: paymentResult.nroBoleta })}
                       </p>
                     )}
                   </div>
                 )}
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-500">
-                  Gracias por su compra
+                  {t("paymentSelection.thankYou")}
                 </p>
               </>
             )}
@@ -468,7 +470,7 @@ export default function PaymentSelectionPage({
                 </div>
 
                 <h2 className="text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold text-red-600 mb-1 md:mb-2 lg:mb-3 xl:mb-4 text-center">
-                  Error en el pago
+                  {t("paymentSelection.paymentErrorTitle")}
                 </h2>
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-700 text-center">

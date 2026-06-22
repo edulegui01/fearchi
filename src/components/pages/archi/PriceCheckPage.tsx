@@ -6,6 +6,7 @@ import { barcodeService } from '../../../services/BarcodeService';
 import ProductService from '../../../services/product/ProductService';
 import { ApiError } from '../../../utils/ApiError';
 import type { Product, ScannedProduct, ProductQuantities } from '../../../types';
+import { useLanguage } from "../../common/LanguageContext";
 
 interface PriceCheckPageProps {
   onBack?: () => void;
@@ -13,6 +14,7 @@ interface PriceCheckPageProps {
 
 export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [productQuantities, setProductQuantities] = useState<ProductQuantities>({});
   const [isActive, setIsActive] = useState(true);
@@ -91,7 +93,7 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
           console.error('🔌 Error de conexión:', error);
           alert(error.getUserFriendlyMessage());
         } else if (error.status === 404) {
-          const errorMessage = error.response?.message || `Producto con código "${barcode}" no encontrado en el sistema POS`;
+          const errorMessage = error.response?.message || t("priceCheck.productNotFoundWithCode", { barcode });
           console.warn('❌ Producto no encontrado:', errorMessage);
           alert(errorMessage);
         } else {
@@ -100,14 +102,14 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
         }
       } else {
         console.error('💥 Error inesperado:', error);
-        alert('Error inesperado al buscar el producto. Por favor intente nuevamente.');
+        alert(t("priceCheck.unexpectedSearchError"));
       }
     }
   };
 
   const handleAgregar = () => {
     if (products.length === 0) {
-      alert('No hay productos para agregar. Escanee al menos un producto.');
+      alert(t("priceCheck.noProductsToAdd"));
       return;
     }
 
@@ -152,7 +154,7 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
             />
           </div>
           <h2 className="text-base md:text-lg lg:text-2xl xl:text-4xl font-semibold text-primary-600 text-center">
-            Consulta de Precios
+            {t("priceCheck.title")}
           </h2>
         </div>
 
@@ -168,7 +170,7 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <p className="text-primary-600 text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold">
-                  Escanee los productos<br />para consultar precios
+                  {t("priceCheck.scanPromptLine1")}<br />{t("priceCheck.scanPromptLine2")}
                 </p>
               </div>
             </div>
@@ -178,16 +180,16 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
               <div className="flex items-center gap-2 md:gap-3 lg:gap-4 xl:gap-8 mb-2 md:mb-3 lg:mb-4 xl:mb-6 px-2 md:px-3 lg:px-4 xl:px-6">
                 <div className="flex-shrink-0 w-12 md:w-14 lg:w-16 xl:w-24"></div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">Producto</div>
+                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">{t("common.producto")}</div>
                 </div>
                 <div className="text-center flex-shrink-0 w-14 md:w-18 lg:w-20 xl:w-28">
-                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">Cantidad</div>
+                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">{t("common.cantidad")}</div>
                 </div>
                 <div className="text-center flex-shrink-0 w-16 md:w-20 lg:w-24 xl:w-32">
-                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">Precio</div>
+                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">{t("common.precio")}</div>
                 </div>
                 <div className="text-center flex-shrink-0 w-16 md:w-20 lg:w-24 xl:w-32">
-                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">Sub Total</div>
+                  <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">{t("common.subTotal")}</div>
                 </div>
                 <div className="flex-shrink-0 w-8 md:w-9 lg:w-10 xl:w-14"></div>
               </div>
@@ -213,7 +215,7 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
           <div className="flex justify-end">
             <div className="flex items-center gap-2 md:gap-2 lg:gap-3 xl:gap-4">
               <div className="text-base md:text-lg lg:text-xl xl:text-5xl font-semibold text-gray-700">
-                Total:
+                {t("priceCheck.total")}
               </div>
               <div className="text-base md:text-lg lg:text-xl xl:text-5xl font-bold text-primary-600">
                 ₲{products.reduce((total, product) => {
@@ -232,14 +234,14 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
             disabled={products.length === 0}
             className="w-full bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 md:py-4 lg:py-5 xl:py-11 rounded-lg text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold transition-colors duration-200"
           >
-            Agregar
+            {t("common.agregar")}
           </button>
 
           <button
             onClick={handleVolver}
             className="w-full bg-gray-300 text-gray-800 py-3 md:py-4 lg:py-5 xl:py-11 rounded-lg text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold transition-colors duration-200"
           >
-            Volver
+            {t("common.volver")}
           </button>
         </div>
       </div>

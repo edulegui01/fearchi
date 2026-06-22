@@ -7,6 +7,7 @@ import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useAlert } from "../../common/AlertContext";
+import { useLanguage } from "../../common/LanguageContext";
 import type { VentasAut } from "../../../types";
 
 // Tipo para datos de la balanza
@@ -74,6 +75,7 @@ export default function InvoiceTypeSelectionPage({
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
   const { showAlert } = useAlert();
+  const { t } = useLanguage();
   const [cajaValue, setCajaValue] = useState<number | null>(null);
 
   // Estado para validación de balanza vacía
@@ -166,7 +168,7 @@ export default function InvoiceTypeSelectionPage({
       const caja = cajaValue;
 
       if (caja === null) {
-        setErrorMessage("No se pudo obtener la configuración de caja.");
+        setErrorMessage(t("invoiceTypeSelection.cajaConfigError"));
         hideLoading();
         return;
       }
@@ -197,9 +199,11 @@ export default function InvoiceTypeSelectionPage({
     } catch (error) {
       console.error("Error al buscar datos del cliente sin nombre:", error);
       if (error instanceof ApiError && error.status === 400) {
-        setErrorMessage(error.message || "Error al buscar datos del cliente.");
+        setErrorMessage(
+          error.message || t("invoiceTypeSelection.clientFetchErrorFallback"),
+        );
       } else {
-        setErrorMessage("Error de conexión. Intente nuevamente.");
+        setErrorMessage(t("invoiceTypeSelection.connectionErrorRetry"));
       }
       hideLoading();
       return;
@@ -252,7 +256,7 @@ export default function InvoiceTypeSelectionPage({
 
     // Validar que el RUC no esté vacío
     if (!ruc.trim()) {
-      showAlert("Por favor, ingrese el RUC", "warning");
+      showAlert(t("invoiceTypeSelection.rucRequired"), "warning");
       return;
     }
 
@@ -264,7 +268,7 @@ export default function InvoiceTypeSelectionPage({
       const caja = cajaValue;
 
       if (caja === null) {
-        showAlert("No se pudo obtener la configuración de caja.");
+        showAlert(t("invoiceTypeSelection.cajaConfigError"));
         hideLoading();
         return;
       }
@@ -305,9 +309,7 @@ export default function InvoiceTypeSelectionPage({
         setShowRazonSocialModal(true);
         setActiveField("razonSocial");
       } else {
-        showAlert(
-          "Error al buscar datos del cliente. Por favor, intente nuevamente.",
-        );
+        showAlert(t("invoiceTypeSelection.clientSearchErrorRetry"));
       }
       hideLoading();
     }
@@ -370,7 +372,7 @@ export default function InvoiceTypeSelectionPage({
       });
     } catch (error) {
       console.error("Error al crear factura:", error);
-      showAlert("Error al crear factura. Por favor, intente nuevamente.");
+      showAlert(t("invoiceTypeSelection.invoiceCreateErrorRetry"));
       hideLoading();
     }
   };
@@ -379,11 +381,12 @@ export default function InvoiceTypeSelectionPage({
     e.preventDefault();
 
     if (!razonSocial.trim()) {
-      showAlert("Por favor, ingrese la razón social", "warning");
+      showAlert(t("invoiceTypeSelection.razonSocialRequired"), "warning");
       return;
     }
 
     try {
+      showLoading();
       // Hacer POST para registrar el cliente
       await HttpClient.post(ARCHI_ENDPOINTS.registerClient, {
         caja: pendingCaja,
@@ -434,12 +437,14 @@ export default function InvoiceTypeSelectionPage({
         sessionStorage.removeItem("priceCheckProducts");
       }
 
+      hideLoading();
       navigate("/bag-selection", {
         state: navigationState,
       });
     } catch (error) {
       console.error("Error al registrar cliente:", error);
-      showAlert("Error al registrar cliente. Por favor, intente nuevamente.");
+      showAlert(t("invoiceTypeSelection.clientRegisterErrorRetry"));
+      hideLoading();
     }
   };
 
@@ -497,7 +502,7 @@ export default function InvoiceTypeSelectionPage({
 
         {/* Título */}
         <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-6xl font-bold text-primary-600 text-center mb-2 md:mb-3 lg:mb-4 xl:mb-8">
-          ¿Cómo preferís tu factura?
+          {t("invoiceTypeSelection.title")}
         </h1>
 
         {errorMessage && (
@@ -531,7 +536,7 @@ export default function InvoiceTypeSelectionPage({
               </svg>
             </div>
             <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">
-              Sin Nombre
+              {t("invoiceTypeSelection.withoutNameLabel")}
             </span>
           </button>
 
@@ -558,7 +563,7 @@ export default function InvoiceTypeSelectionPage({
               </svg>
             </div>
             <span className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600">
-              Con RUC
+              {t("invoiceTypeSelection.withRucLabel")}
             </span>
           </button>
         </div>
@@ -568,7 +573,7 @@ export default function InvoiceTypeSelectionPage({
           onClick={() => navigate("/menu")}
           className="mt-2 md:mt-3 lg:mt-4 xl:mt-8 w-full bg-gray-300 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 px-6 md:px-8 lg:px-10 xl:px-16 rounded-lg xl:rounded-xl shadow-lg transition-colors duration-200 text-base md:text-lg lg:text-xl xl:text-3xl"
         >
-          Volver
+          {t("common.volver")}
         </button>
       </div>
 
@@ -577,7 +582,7 @@ export default function InvoiceTypeSelectionPage({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 md:p-3 lg:p-4 xl:p-8 overflow-y-auto">
           <div className="bg-white rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl p-3 md:p-4 lg:p-6 xl:p-12 max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl w-full my-2 md:my-3 lg:my-4 xl:my-8">
             <h2 className="text-lg md:text-xl lg:text-3xl xl:text-5xl font-bold text-primary-600 mb-2 md:mb-3 lg:mb-4 xl:mb-8 text-center">
-              Datos de Facturación
+              {t("invoiceTypeSelection.billingDataTitle")}
             </h2>
 
             <form
@@ -590,7 +595,7 @@ export default function InvoiceTypeSelectionPage({
                   htmlFor="ruc"
                   className="block text-sm md:text-base lg:text-xl xl:text-3xl font-semibold text-gray-700 mb-1 md:mb-2 lg:mb-3"
                 >
-                  RUC
+                  {t("invoiceTypeSelection.rucFieldLabel")}
                 </label>
                 <div className="flex gap-1 md:gap-2 lg:gap-3 items-center">
                   {/* Input RUC base */}
@@ -606,7 +611,7 @@ export default function InvoiceTypeSelectionPage({
                         ? "border-primary-600 bg-primary-50"
                         : "border-gray-300 bg-white"
                     }`}
-                    placeholder="Ingrese el RUC"
+                    placeholder={t("invoiceTypeSelection.rucPlaceholder")}
                   />
 
                   {/* Separador */}
@@ -622,11 +627,11 @@ export default function InvoiceTypeSelectionPage({
                     readOnly
                     className="w-10 md:w-12 lg:w-14 xl:w-20 px-2 md:px-2.5 lg:px-3 xl:px-4 py-2 md:py-2.5 lg:py-3 xl:py-5 text-sm md:text-base lg:text-xl xl:text-3xl border-2 xl:border-4 border-gray-300 bg-gray-100 rounded-lg xl:rounded-xl text-center font-bold text-gray-700"
                     placeholder="0"
-                    title="Dígito Verificador (calculado automáticamente)"
+                    title={t("invoiceTypeSelection.dvTitle")}
                   />
                 </div>
                 <p className="text-xs md:text-sm lg:text-sm xl:text-lg text-gray-500 mt-1 ml-1">
-                  El dígito verificador se calcula automáticamente
+                  {t("invoiceTypeSelection.dvHelperText")}
                 </p>
               </div>
 
@@ -647,13 +652,13 @@ export default function InvoiceTypeSelectionPage({
                   onClick={handleCloseModal}
                   className="flex-1 bg-gray-300 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-sm md:text-base lg:text-xl xl:text-3xl transition-colors duration-200"
                 >
-                  Cancelar
+                  {t("common.cancelar")}
                 </button>
                 <button
                   type="submit"
                   className="flex-1 bg-primary-600 text-white font-bold py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-sm md:text-base lg:text-xl xl:text-3xl transition-colors duration-200"
                 >
-                  Confirmar
+                  {t("common.confirmar")}
                 </button>
               </div>
             </form>
@@ -698,12 +703,11 @@ export default function InvoiceTypeSelectionPage({
             </div>
 
             <h2 className="text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold text-amber-600 mb-2 md:mb-3 lg:mb-4 xl:mb-6 text-center">
-              Balanza con productos
+              {t("invoiceTypeSelection.scaleWithProductsTitle")}
             </h2>
 
             <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-600 text-center">
-              La balanza debe estar vacía para iniciar una compra, por favor
-              retire los productos de la balanza para continuar con su compra
+              {t("invoiceTypeSelection.scaleWithProductsBody")}
             </p>
           </div>
         </div>
@@ -714,7 +718,7 @@ export default function InvoiceTypeSelectionPage({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 md:p-3 lg:p-4 xl:p-8 overflow-y-auto">
           <div className="bg-white rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl p-3 md:p-4 lg:p-6 xl:p-12 max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl w-full my-2 md:my-3 lg:my-4 xl:my-8">
             <h2 className="text-lg md:text-xl lg:text-3xl xl:text-5xl font-bold text-primary-600 mb-2 md:mb-3 lg:mb-4 xl:mb-8 text-center">
-              Ingrese Razón Social
+              {t("invoiceTypeSelection.razonSocialTitle")}
             </h2>
 
             <form
@@ -727,7 +731,7 @@ export default function InvoiceTypeSelectionPage({
                   htmlFor="razonSocial"
                   className="block text-sm md:text-base lg:text-xl xl:text-3xl font-semibold text-gray-700 mb-1 md:mb-2 lg:mb-3"
                 >
-                  Razón Social
+                  {t("invoiceTypeSelection.razonSocialFieldLabel")}
                 </label>
                 <input
                   type="text"
@@ -741,14 +745,14 @@ export default function InvoiceTypeSelectionPage({
                       ? "border-primary-600 bg-primary-50"
                       : "border-gray-300 bg-white"
                   }`}
-                  placeholder="Ingrese la razón social"
+                  placeholder={t("invoiceTypeSelection.razonSocialPlaceholder")}
                 />
               </div>
 
               {/* Mostrar RUC (solo lectura) */}
               <div>
                 <label className="block text-xs md:text-sm lg:text-lg xl:text-2xl font-semibold text-gray-500 mb-1">
-                  RUC
+                  {t("invoiceTypeSelection.rucFieldLabel")}
                 </label>
                 <p className="text-xs md:text-sm lg:text-lg xl:text-2xl text-gray-700 bg-gray-100 px-2 md:px-3 lg:px-4 xl:px-6 py-2 md:py-2.5 lg:py-3 xl:py-4 rounded-lg xl:rounded-xl">
                   {pendingFullRuc}
@@ -772,13 +776,13 @@ export default function InvoiceTypeSelectionPage({
                   onClick={handleCloseRazonSocialModal}
                   className="flex-1 bg-gray-300 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-sm md:text-base lg:text-xl xl:text-3xl transition-colors duration-200"
                 >
-                  Cancelar
+                  {t("common.cancelar")}
                 </button>
                 <button
                   type="submit"
                   className="flex-1 bg-primary-600 text-white font-bold py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-sm md:text-base lg:text-xl xl:text-3xl transition-colors duration-200"
                 >
-                  Confirmar
+                  {t("common.confirmar")}
                 </button>
               </div>
             </form>

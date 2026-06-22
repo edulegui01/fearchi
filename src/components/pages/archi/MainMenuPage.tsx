@@ -4,7 +4,32 @@ import { barcodeService } from "../../../services/BarcodeService";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
+import { useLanguage } from "../../common/LanguageContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
+
+const FLAG_ICON_CLASSNAME = "w-3.5 md:w-4 lg:w-5 xl:w-7 h-auto rounded-sm flex-shrink-0";
+
+function SpainFlagIcon() {
+  return (
+    <svg viewBox="0 0 20 14" className={FLAG_ICON_CLASSNAME}>
+      <rect width="20" height="14" fill="#AA151B" />
+      <rect y="3.5" width="20" height="7" fill="#F1BF00" />
+    </svg>
+  );
+}
+
+function UsaFlagIcon() {
+  const stripeHeight = 14 / 13;
+  return (
+    <svg viewBox="0 0 20 14" className={FLAG_ICON_CLASSNAME}>
+      <rect width="20" height="14" fill="#FFFFFF" />
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+        <rect key={i} y={i * 2 * stripeHeight} width="20" height={stripeHeight} fill="#B22234" />
+      ))}
+      <rect width="8" height={7 * stripeHeight} fill="#3C3B6E" />
+    </svg>
+  );
+}
 
 interface ConsultaProduct {
   codigo: string;
@@ -31,6 +56,7 @@ export default function MainMenuPage({
   const [product, setProduct] = useState<ConsultaProduct | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
+  const { language, setLanguage, t } = useLanguage();
 
   // Estados de conexión (se verifican bajo demanda)
   const [isScaleConnected, setIsScaleConnected] = useState(true);
@@ -118,7 +144,7 @@ export default function MainMenuPage({
         if (error instanceof ApiError) {
           setErrorMessage(error.getUserFriendlyMessage());
         } else {
-          setErrorMessage("Error inesperado. Intente nuevamente.");
+          setErrorMessage(t("mainMenu.unexpectedError"));
         }
       } finally {
         hideLoading();
@@ -169,6 +195,32 @@ export default function MainMenuPage({
 
   return (
     <div className="h-screen bg-secondary-100 flex items-center justify-center p-2 md:p-3 lg:p-4 xl:p-8 overflow-hidden">
+      {/* Selector de idioma */}
+      <div className="fixed top-2 md:top-3 lg:top-4 xl:top-8 right-2 md:right-3 lg:right-4 xl:right-8 flex gap-1 md:gap-2 bg-white rounded-full shadow-lg p-1 z-50">
+        <button
+          onClick={() => setLanguage("es")}
+          className={`flex items-center gap-1 md:gap-1.5 px-3 md:px-4 lg:px-5 xl:px-8 py-1 md:py-1.5 lg:py-2 xl:py-3 rounded-full text-xs md:text-sm lg:text-base xl:text-xl font-bold transition-colors duration-200 ${
+            language === "es"
+              ? "bg-primary-600 text-white"
+              : "text-gray-500"
+          }`}
+        >
+          <SpainFlagIcon />
+          ES
+        </button>
+        <button
+          onClick={() => setLanguage("en")}
+          className={`flex items-center gap-1 md:gap-1.5 px-3 md:px-4 lg:px-5 xl:px-8 py-1 md:py-1.5 lg:py-2 xl:py-3 rounded-full text-xs md:text-sm lg:text-base xl:text-xl font-bold transition-colors duration-200 ${
+            language === "en"
+              ? "bg-primary-600 text-white"
+              : "text-gray-500"
+          }`}
+        >
+          <UsaFlagIcon />
+          EN
+        </button>
+      </div>
+
       <div className="flex flex-col items-center gap-4 md:gap-6 lg:gap-8 xl:gap-16 w-full max-w-3xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl">
         {/* Logo */}
         <div className="w-full flex justify-center mb-2 md:mb-3 lg:mb-4 xl:mb-10">
@@ -184,10 +236,10 @@ export default function MainMenuPage({
           <div className="w-full flex flex-col gap-2 md:gap-3">
             <div className="w-full bg-red-100 border-2 border-red-400 text-red-700 px-3 md:px-4 lg:px-5 xl:px-8 py-2 md:py-3 lg:py-4 xl:py-6 rounded-lg xl:rounded-xl text-center">
               <p className="text-sm md:text-base lg:text-lg xl:text-3xl font-bold">
-                Sin conexión con la balanza
+                {t("mainMenu.scaleDisconnectedTitle")}
               </p>
               <p className="text-xs md:text-sm lg:text-base xl:text-xl mt-1">
-                Verifique la conexión de la balanza para iniciar una compra
+                {t("mainMenu.scaleDisconnectedSubtitle")}
               </p>
             </div>
           </div>
@@ -199,14 +251,14 @@ export default function MainMenuPage({
             onClick={() => checkDevicesAndStartPurchase()}
             className="bg-primary-600 text-white font-bold py-4 md:py-6 lg:py-8 xl:py-16 px-4 md:px-5 lg:px-6 xl:px-12 rounded-lg lg:rounded-xl xl:rounded-2xl shadow-2xl transition-colors duration-200 text-base md:text-xl lg:text-2xl xl:text-5xl"
           >
-            Iniciar Compra
+            {t("mainMenu.startPurchase")}
           </button>
 
           <button
             onClick={handleOpenPriceModal}
             className="bg-primary-600 text-white font-bold py-4 md:py-6 lg:py-8 xl:py-16 px-4 md:px-5 lg:px-6 xl:px-12 rounded-lg lg:rounded-xl xl:rounded-2xl shadow-2xl transition-colors duration-200 text-base md:text-xl lg:text-2xl xl:text-5xl"
           >
-            Consultar Precio
+            {t("mainMenu.checkPrice")}
           </button>
         </div>
 
@@ -215,7 +267,7 @@ export default function MainMenuPage({
           onClick={handleAbrirPuerta}
           className="bg-primary-600 text-white font-bold py-4 md:py-6 lg:py-8 xl:py-16 px-4 md:px-5 lg:px-6 xl:px-12 rounded-lg lg:rounded-xl xl:rounded-2xl shadow-2xl transition-colors duration-200 text-base md:text-xl lg:text-2xl xl:text-5xl w-full"
         >
-          Abrir la Puerta
+          {t("mainMenu.openDoor")}
         </button>
       </div>
 
@@ -230,11 +282,11 @@ export default function MainMenuPage({
               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2/3 max-w-xs opacity-20 pointer-events-none"
             />
             <h2 className="text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold text-primary-600 mb-2 md:mb-3 lg:mb-4 xl:mb-8 text-center relative">
-              Consultar Precio
+              {t("mainMenu.checkPrice")}
             </h2>
 
             <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-900 font-semibold mb-2 md:mb-3 lg:mb-4 xl:mb-8 text-center relative">
-              Escanee un código de barras
+              {t("mainMenu.scanBarcodePrompt")}
             </p>
 
             {errorMessage && (
@@ -261,7 +313,7 @@ export default function MainMenuPage({
                   {product.descripcion}
                 </h3>
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-500 mb-1">
-                  Código: {product.codigo_barra}
+                  {t("mainMenu.codeLabel", { code: product.codigo_barra })}
                 </p>
                 <p className="text-xl md:text-2xl lg:text-3xl xl:text-5xl font-bold text-primary-600 mt-1 md:mt-2 lg:mt-3 xl:mt-4">
                   Gs. {product.precio.toLocaleString("es-PY")}
@@ -285,7 +337,7 @@ export default function MainMenuPage({
                       d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
                     />
                   </svg>
-                  Agregar
+                  {t("common.agregar")}
                 </button>
               </div>
             )}
@@ -295,7 +347,7 @@ export default function MainMenuPage({
               onClick={handleClosePriceModal}
               className="mt-2 md:mt-3 lg:mt-4 xl:mt-8 w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 md:py-2.5 lg:py-3 xl:py-4 px-4 md:px-5 lg:px-6 xl:px-8 rounded-lg xl:rounded-xl text-sm md:text-base lg:text-lg xl:text-2xl transition-colors duration-200 relative"
             >
-              Cerrar
+              {t("common.cerrar")}
             </button>
           </div>
         </div>
@@ -310,7 +362,7 @@ export default function MainMenuPage({
               </svg>
             </div>
             <h2 className="text-xl xl:text-4xl font-bold text-gray-800 text-center">
-              ¡Puerta Abierta!
+              {t("mainMenu.doorOpened")}
             </h2>
           </div>
         </div>

@@ -8,6 +8,7 @@ import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
 import { useAlert } from "../../common/AlertContext";
+import { useLanguage } from "../../common/LanguageContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import type {
   Product,
@@ -70,6 +71,7 @@ export default function SaleScreen({
   const locationState = location.state as LocationState;
   const { showLoading, hideLoading } = useLoading();
   const { showAlert } = useAlert();
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productQuantities, setProductQuantities] = useState<ProductQuantities>(
@@ -509,18 +511,18 @@ export default function SaleScreen({
           // Error 404 - Producto no encontrado
           const errorMsg =
             error.response?.message ||
-            `Producto con código "${barcode}" no encontrado en el sistema POS`;
+            t("saleScreen.productNotFoundWithCode", { barcode });
           console.warn("❌ Producto no encontrado:", errorMsg);
           showAlert(errorMsg);
         } else {
           // Otros errores de API (500, 503, etc.)
           console.error("💥 Error de API:", error);
-          showAlert(`Error al buscar el producto: ${error.getUserFriendlyMessage()}`);
+          showAlert(t("saleScreen.searchProductError", { message: error.getUserFriendlyMessage() }));
         }
       } else {
         // Errores no relacionados con la API
         console.error("💥 Error inesperado:", error);
-        showAlert("Error inesperado al buscar el producto. Por favor intente nuevamente.");
+        showAlert(t("saleScreen.unexpectedSearchError"));
       }
     }
   };
@@ -651,12 +653,12 @@ export default function SaleScreen({
 
       if (error instanceof ApiError) {
         if (error.status === 404) {
-          showAlert(`Producto con código "${barcode}" no encontrado`);
+          showAlert(t("saleScreen.productNotFoundInsertMode", { barcode }));
         } else {
-          showAlert(`Error al consultar producto: ${error.getUserFriendlyMessage()}`);
+          showAlert(t("saleScreen.queryProductError", { message: error.getUserFriendlyMessage() }));
         }
       } else {
-        showAlert("Error de conexión al consultar producto");
+        showAlert(t("saleScreen.connectionErrorQuery"));
       }
     }
   };
@@ -733,19 +735,19 @@ export default function SaleScreen({
         if (errorData?.cod_barra) {
           // Error de producto específico
           setErrorProductBarcode(errorData.cod_barra);
-          setProductInsertError(`Error en producto ${errorData.cod_barra}: ${errorData.message}`);
-          showAlert(`Error: ${errorData.message} (Código: ${errorData.cod_barra})`);
+          setProductInsertError(t("saleScreen.productInsertErrorWithCode", { code: errorData.cod_barra, message: errorData.message }));
+          showAlert(t("saleScreen.productInsertErrorWithCodeShort", { message: errorData.message, code: errorData.cod_barra }));
         } else {
           // Error genérico
-          setProductInsertError(errorData?.message || "Error al insertar productos");
-          showAlert(errorData?.message || "Error al insertar productos");
+          setProductInsertError(errorData?.message || t("saleScreen.insertProductsErrorGeneric"));
+          showAlert(errorData?.message || t("saleScreen.insertProductsErrorGeneric"));
         }
 
         // Limpiar y recrear factura
         await cleanAndRecreateInvoice();
       } else {
-        setProductInsertError("Error de conexión al insertar productos");
-        showAlert("Error de conexión. Intente nuevamente.");
+        setProductInsertError(t("saleScreen.insertConnectionError"));
+        showAlert(t("saleScreen.connectionErrorRetry"));
         await cleanAndRecreateInvoice();
       }
 
@@ -782,7 +784,7 @@ export default function SaleScreen({
       console.error("❌ Error en handlePagarWithInsert:", error);
       hideLoading();
       setIsInsertingProducts(false);
-      showAlert("Error inesperado. Intente nuevamente.");
+      showAlert(t("saleScreen.unexpectedErrorRetry"));
     }
   };
 
@@ -867,7 +869,7 @@ export default function SaleScreen({
               }).catch((error) => {
                 console.error("❌ Error en /scanning-peso:", error);
                 isCallingWeightEndpointRef.current = false;
-                setWeightError("Error al determinar peso del producto");
+                setWeightError(t("saleScreen.weightDeterminationError"));
                 setWeightValidationStatus("error");
               });
             }
@@ -926,7 +928,7 @@ export default function SaleScreen({
               }
               if (showWeightModalRef.current) {
                 setWeightError(
-                  `El peso no coincide. Esperado: ${expected.toFixed(3)}kg, Actual: ${data.peso.toFixed(3)}kg`
+                  t("saleScreen.weightMismatch", { expected: expected.toFixed(3), actual: data.peso.toFixed(3) })
                 );
                 setWeightValidationStatus("error");
               }
@@ -1054,9 +1056,9 @@ export default function SaleScreen({
     } catch (error) {
       console.error("Error al eliminar producto:", error);
       if (error instanceof ApiError) {
-        showAlert(`Error: ${error.message}`);
+        showAlert(t("saleScreen.errorWithMessage", { message: error.message }));
       } else {
-        showAlert("Error al eliminar producto");
+        showAlert(t("saleScreen.deleteProductErrorGeneric"));
       }
       return;
     }
@@ -1094,9 +1096,9 @@ export default function SaleScreen({
     } catch (error) {
       console.error("Error al incrementar cantidad:", error);
       if (error instanceof ApiError) {
-        showAlert(`Error: ${error.message}`);
+        showAlert(t("saleScreen.errorWithMessage", { message: error.message }));
       } else {
-        showAlert("Error al incrementar cantidad");
+        showAlert(t("saleScreen.incrementErrorGeneric"));
       }
     }
   };
@@ -1135,9 +1137,9 @@ export default function SaleScreen({
     } catch (error) {
       console.error("Error al decrementar cantidad:", error);
       if (error instanceof ApiError) {
-        showAlert(`Error: ${error.message}`);
+        showAlert(t("saleScreen.errorWithMessage", { message: error.message }));
       } else {
-        showAlert("Error al decrementar cantidad");
+        showAlert(t("saleScreen.decrementErrorGeneric"));
       }
     }
   };
@@ -1173,7 +1175,7 @@ export default function SaleScreen({
           </div>
           {/* Instrucción destacada */}
           <p className="text-base md:text-lg lg:text-2xl xl:text-5xl font-bold text-primary-600 text-center mt-1 md:mt-2 lg:mt-3 xl:mt-4 animate-pulse">
-            Escanee sus productos para agregarlos
+            {t("saleScreen.scanToAddPrompt")}
           </p>
         </div>
 
@@ -1191,9 +1193,7 @@ export default function SaleScreen({
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <p className="text-primary-600 text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold">
-                  Escanee los productos
-                  <br />
-                  para agregarlos
+                  {t("saleScreen.emptyListLine1")}<br />{t("saleScreen.emptyListLine2")}
                 </p>
               </div>
             </div>
@@ -1204,22 +1204,22 @@ export default function SaleScreen({
                 <div className="flex-shrink-0 w-12 md:w-14 lg:w-16 xl:w-24"></div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">
-                    Producto
+                    {t("common.producto")}
                   </div>
                 </div>
                 <div className="text-center flex-shrink-0 w-16 md:w-20 lg:w-24 xl:w-36">
                   <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">
-                    Cantidad
+                    {t("common.cantidad")}
                   </div>
                 </div>
                 <div className="text-center flex-shrink-0 w-16 md:w-20 lg:w-24 xl:w-32">
                   <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">
-                    Precio
+                    {t("common.precio")}
                   </div>
                 </div>
                 <div className="text-center flex-shrink-0 w-16 md:w-20 lg:w-24 xl:w-32">
                   <div className="text-xs md:text-sm lg:text-sm xl:text-lg font-bold text-gray-700 uppercase tracking-wide">
-                    Sub Total
+                    {t("common.subTotal")}
                   </div>
                 </div>
                 <div className="flex-shrink-0 w-8 md:w-9 lg:w-10 xl:w-14"></div>
@@ -1248,7 +1248,7 @@ export default function SaleScreen({
           <div className="flex justify-end">
             <div className="flex items-center gap-2 md:gap-2 lg:gap-3 xl:gap-4">
               <div className="text-base md:text-lg lg:text-xl xl:text-5xl font-semibold text-gray-700">
-                Total a Pagar:
+                {t("saleScreen.totalToPayColon")}
               </div>
               <div className="text-base md:text-lg lg:text-xl xl:text-5xl font-bold text-primary-600">
                 ₲
@@ -1274,7 +1274,7 @@ export default function SaleScreen({
               <span className="font-semibold">{productInsertError}</span>
               {errorProductBarcode && (
                 <span className="ml-2 bg-red-200 px-2 py-1 rounded text-sm">
-                  Código: {errorProductBarcode}
+                  {t("saleScreen.codeLabel", { code: errorProductBarcode })}
                 </span>
               )}
             </div>
@@ -1288,7 +1288,7 @@ export default function SaleScreen({
             disabled={products.length === 0 || isInsertingProducts}
             className="w-full bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 md:py-4 lg:py-5 xl:py-11 rounded-lg text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold transition-colors duration-200"
           >
-            {isInsertingProducts ? "Procesando..." : "Pagar"}
+            {isInsertingProducts ? t("saleScreen.processing") : t("saleScreen.pay")}
           </button>
 
           <button
@@ -1296,7 +1296,7 @@ export default function SaleScreen({
             disabled={isCancelling}
             className="w-full bg-gray-300 disabled:bg-gray-200 disabled:cursor-not-allowed text-gray-800 py-3 md:py-4 lg:py-5 xl:py-11 rounded-lg text-lg md:text-xl lg:text-2xl xl:text-4xl font-semibold transition-colors duration-200"
           >
-            Cancelar
+            {t("saleScreen.cancel")}
           </button>
         </div>
       </div>
@@ -1310,20 +1310,20 @@ export default function SaleScreen({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
             </div>
-            <h2 className="text-xl xl:text-3xl font-bold text-gray-900 text-center">¿Limpiar lista de productos?</h2>
-            <p className="text-gray-600 xl:text-xl text-center">Esta acción borrará todos los productos de la lista para poder cargarlos de nuevo.</p>
+            <h2 className="text-xl xl:text-3xl font-bold text-gray-900 text-center">{t("saleScreen.clearListTitle")}</h2>
+            <p className="text-gray-600 xl:text-xl text-center">{t("saleScreen.clearListBody")}</p>
             <div className="flex gap-3 xl:gap-4 w-full mt-2">
               <button
                 onClick={() => setShowClearModal(false)}
                 className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 xl:py-5 rounded-xl text-base xl:text-2xl font-semibold transition-colors"
               >
-                Cancelar
+                {t("common.cancelar")}
               </button>
               <button
                 onClick={handleConfirmClear}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 xl:py-5 rounded-xl text-base xl:text-2xl font-semibold transition-colors"
               >
-                Confirmar
+                {t("common.confirmar")}
               </button>
             </div>
           </div>
@@ -1373,15 +1373,15 @@ export default function SaleScreen({
                 </div>
 
                 <h2 className={`text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold ${weightValidationStatus === "error" ? "text-red-600" : "text-primary-600"} mb-1 md:mb-2 lg:mb-3 xl:mb-4 text-center`}>
-                  Coloque los productos en la balanza
+                  {t("saleScreen.placeProductsOnScale")}
                 </h2>
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-600 mb-3 md:mb-4 lg:mb-5 xl:mb-6 text-center">
                   {weightValidationStatus === "error"
-                    ? "Por favor, coloque todos los productos escaneados en la balanza"
+                    ? t("saleScreen.placeAllProducts")
                     : weightValidationStatus === "validating"
-                    ? "Consultando peso al servidor..."
-                    : "Esperando lectura de peso estable..."}
+                    ? t("saleScreen.queryingWeight")
+                    : t("saleScreen.waitingStableWeight")}
                 </p>
 
                 {/* Logo girando */}
@@ -1414,11 +1414,11 @@ export default function SaleScreen({
                 </div>
 
                 <h2 className="text-lg md:text-xl lg:text-2xl xl:text-4xl font-bold text-green-600 mb-1 md:mb-2 lg:mb-3 xl:mb-4 text-center">
-                  Peso verificado correctamente
+                  {t("saleScreen.weightVerified")}
                 </h2>
 
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-500">
-                  Puede continuar escaneando...
+                  {t("saleScreen.continueScanning")}
                 </p>
               </>
             )}
