@@ -5,12 +5,7 @@ import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useAlert } from "../../common/AlertContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
-import { useLoading } from "../../common/LoadingContext";
 import { useLanguage } from "../../common/LanguageContext";
-
-interface PaymentSelectionPageProps {
-  onBack?: () => void;
-}
 
 type PaymentMethod = "tarjeta" | "qr" | null;
 type PaymentStatus = "idle" | "loading" | "success" | "error";
@@ -41,18 +36,11 @@ interface PaymentResponse {
   pan?: string; // Solo en tarjeta
 }
 
-export default function PaymentSelectionPage({
-  onBack,
-}: PaymentSelectionPageProps) {
+export default function PaymentSelectionPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showAlert } = useAlert();
-  const { showLoading, hideLoading } = useLoading();
   const { t } = useLanguage();
-
-  // Modo de operación desde .env
-  const useInsertProductsMode =
-    import.meta.env.VITE_USE_INSERT_PRODUCTS_MODE === "true";
 
   // Estado del modal
   const [showModal, setShowModal] = useState(false);
@@ -179,6 +167,8 @@ export default function PaymentSelectionPage({
   };
 
   const handlePagoTarjeta = () => {
+    if (paymentStatus !== "idle") return;
+
     setPaymentMethod("tarjeta");
     setPaymentStatus("loading");
     setPaymentResult(null);
@@ -191,6 +181,8 @@ export default function PaymentSelectionPage({
   };
 
   const handlePagoQR = () => {
+    if (paymentStatus !== "idle") return;
+
     setPaymentMethod("qr");
     setPaymentStatus("loading");
     setPaymentResult(null);
@@ -209,51 +201,15 @@ export default function PaymentSelectionPage({
     setPaymentResult(null);
   };
 
-  // Obtener documento del cliente desde invoiceData
-  const getClienteDocumento = (): string => {
-    const invoiceData = sessionStorage.getItem("invoiceData");
-    if (invoiceData) {
-      const parsed = JSON.parse(invoiceData);
-      return parsed.ruc || "44444401-7";
-    }
-    return "44444401-7";
-  };
-
-  // Limpiar ticket y recrear factura
-  const cleanAndRecreateInvoice = async () => {
-    const caja = getCaja();
-
-    try {
-      // 1. Limpiar ticket
-      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja });
-      console.log("✅ Ticket limpiado");
-
-      // 2. Recrear factura con el cliente actual
-      const documento = getClienteDocumento();
-      await HttpClient.post(ARCHI_ENDPOINTS.createInvoice, {
-        caja,
-        operacion: 6,
-        documento,
-      });
-      console.log("✅ Factura recreada para:", documento);
-    } catch (error) {
-      console.error("❌ Error al limpiar/recrear factura:", error);
-    }
-  };
-
-  const handleBack = async () => {
-    // Limpiar ticket y recrear factura (solo en modo inserción)
-    if (useInsertProductsMode) {
-      showLoading();
-      await cleanAndRecreateInvoice();
-      hideLoading();
-    }
-
-    if (onBack) {
-      onBack();
-    } else {
-      navigate("/sale");
-    }
+  const handleBack = () => {
+    navigate("/sale", {
+      state: {
+        fromPaymentBack: true,
+        products,
+        productQuantities,
+        totalAmount,
+      },
+    });
   };
 
   return (
@@ -278,7 +234,8 @@ export default function PaymentSelectionPage({
           {/* Opción Pago con Tarjeta */}
           <button
             onClick={handlePagoTarjeta}
-            className="bg-primary-50 border-2 xl:border-4 border-primary-600 rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl transition-all duration-200 p-3 md:p-4 lg:p-6 xl:p-12 flex flex-col items-center justify-center gap-2 md:gap-3 lg:gap-4 xl:gap-8 min-h-[140px] md:min-h-[180px] lg:min-h-[220px] xl:min-h-[400px] active:scale-95"
+            disabled={paymentStatus !== "idle"}
+            className="bg-primary-50 border-2 xl:border-4 border-primary-600 rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl transition-all duration-200 p-3 md:p-4 lg:p-6 xl:p-12 flex flex-col items-center justify-center gap-2 md:gap-3 lg:gap-4 xl:gap-8 min-h-[140px] md:min-h-[180px] lg:min-h-[220px] xl:min-h-[400px] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {/* Icono de tarjeta */}
             <div className="w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 xl:w-40 xl:h-40 bg-primary-600 rounded-full flex items-center justify-center">
@@ -308,7 +265,8 @@ export default function PaymentSelectionPage({
           {/* Opción Pago con QR */}
           <button
             onClick={handlePagoQR}
-            className="bg-primary-50 border-2 xl:border-4 border-primary-600 rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl transition-all duration-200 p-3 md:p-4 lg:p-6 xl:p-12 flex flex-col items-center justify-center gap-2 md:gap-3 lg:gap-4 xl:gap-8 min-h-[140px] md:min-h-[180px] lg:min-h-[220px] xl:min-h-[400px] active:scale-95"
+            disabled={paymentStatus !== "idle"}
+            className="bg-primary-50 border-2 xl:border-4 border-primary-600 rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl transition-all duration-200 p-3 md:p-4 lg:p-6 xl:p-12 flex flex-col items-center justify-center gap-2 md:gap-3 lg:gap-4 xl:gap-8 min-h-[140px] md:min-h-[180px] lg:min-h-[220px] xl:min-h-[400px] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {/* Icono de QR */}
             <div className="w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 xl:w-40 xl:h-40 bg-primary-600 rounded-full flex items-center justify-center">

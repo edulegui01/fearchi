@@ -13,6 +13,8 @@ export interface LocationState {
   scannedProduct?: ApiProduct;
   fromPriceCheck?: boolean;
   fromBagSelection?: boolean;
+  fromPaymentBack?: boolean;
+  totalAmount?: number;
   productQuantities?: ProductQuantities;
   razonSocial?: string;
   ruc?: string;

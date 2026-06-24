@@ -138,7 +138,7 @@ function AppContent({
 
       <Route
         path="/payment-selection"
-        element={<PaymentSelectionPage onBack={() => navigate("/sale")} />}
+        element={<PaymentSelectionPage />}
       />
 
       <Route

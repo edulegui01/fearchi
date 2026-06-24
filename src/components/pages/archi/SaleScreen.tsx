@@ -77,6 +77,12 @@ export default function SaleScreen({
   const [productQuantities, setProductQuantities] = useState<ProductQuantities>(
     {},
   );
+  // Total acumulado del ticket según el backend (Pegasus). Mientras sea null,
+  // todavía no hubo ninguna interacción con el backend y se usa el cálculo
+  // local como respaldo (ej. carrito recién llegado de WelcomeScreen/PriceCheck,
+  // o modo inserción, donde no hay ticket en vivo en el backend).
+  const [totalVenta, setTotalVenta] = useState<number | null>(null);
+  const totalVentaRef = useRef<number | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
@@ -127,6 +133,10 @@ export default function SaleScreen({
   useEffect(() => {
     productQuantitiesRef.current = productQuantities;
   }, [productQuantities]);
+
+  useEffect(() => {
+    totalVentaRef.current = totalVenta;
+  }, [totalVenta]);
 
   useEffect(() => {
     showWeightModalRef.current = showWeightModal;
@@ -233,6 +243,18 @@ export default function SaleScreen({
       );
       setProducts(locationState.products);
       setProductQuantities(locationState.productQuantities || {});
+      return; // Salir temprano, no cargar de sessionStorage
+    }
+
+    // Verificar si se vuelve desde la selección de pago (mantener cantidades tal cual estaban)
+    if (locationState?.fromPaymentBack && locationState?.products) {
+      console.log(
+        "⬅️ Productos recibidos al volver desde selección de pago:",
+        locationState.products,
+      );
+      setProducts(locationState.products);
+      setProductQuantities(locationState.productQuantities || {});
+      setTotalVenta(locationState.totalAmount ?? null);
       return; // Salir temprano, no cargar de sessionStorage
     }
 
@@ -405,6 +427,9 @@ export default function SaleScreen({
         await ProductService.getProductByBarcode(barcode, 1);
 
       if (product) {
+        // Total real del ticket según el backend (Pegasus)
+        setTotalVenta(product.total_venta);
+
         // Construir URL completa de la imagen
         const imagenUrl = product.imagen ? `${import.meta.env.VITE_API_BASE_URL}${product.imagen}` : "";
 
@@ -957,20 +982,29 @@ export default function SaleScreen({
     }
   };
 
+  // Cálculo de respaldo, solo para cuando todavía no hay un total_venta
+  // confirmado por el backend (ej. modo inserción, o carrito recién llegado
+  // de WelcomeScreen/PriceCheck sin ninguna interacción con el backend aún)
+  const calculateClientSideTotal = (
+    prods: Product[],
+    qtys: ProductQuantities,
+  ) =>
+    prods.reduce((total, product) => {
+      if (product.total !== undefined) {
+        return total + product.total;
+      }
+      const quantity = qtys[product.cod_barra] || 1;
+      return total + product.precio * quantity;
+    }, 0);
+
   // Proceder al pago (usa refs para evitar closure stale en callbacks del WebSocket)
   const proceedToPayment = useCallback(() => {
     const currentProducts = productsRef.current;
     const currentQuantities = productQuantitiesRef.current;
 
-    const totalAmount = currentProducts.reduce((total, product) => {
-      if (product.total !== undefined) {
-        console.log(`💰 Producto: ${product.descripcion}, total: ${product.total}`);
-        return total + product.total;
-      }
-      const quantity = currentQuantities[product.cod_barra] || 1;
-      console.log(`💰 Producto: ${product.descripcion}, precio: ${product.precio}, cantidad: ${quantity}, subtotal: ${product.precio * quantity}`);
-      return total + product.precio * quantity;
-    }, 0);
+    const totalAmount =
+      totalVentaRef.current ??
+      calculateClientSideTotal(currentProducts, currentQuantities);
 
     console.log("💰 Total calculado en proceedToPayment:", totalAmount);
     console.log("💰 Products:", currentProducts);
@@ -1028,6 +1062,7 @@ export default function SaleScreen({
     // Limpiar estado local
     setProducts([]);
     setProductQuantities({});
+    setTotalVenta(null);
     // Limpiar sessionStorage
     sessionStorage.removeItem("currentOrder");
     sessionStorage.removeItem("invoiceData");
@@ -1049,10 +1084,13 @@ export default function SaleScreen({
       : -(product.cantidad ?? productQuantitiesRef.current[productId] ?? 1);
 
     try {
-      await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
+      const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: scanValue,
         cantidad_a_insertar: amountToRemove,
       });
+
+      // Total real del ticket según el backend (Pegasus)
+      setTotalVenta(response.total_venta);
     } catch (error) {
       console.error("Error al eliminar producto:", error);
       if (error instanceof ApiError) {
@@ -1079,6 +1117,9 @@ export default function SaleScreen({
         scan: productId,
         cantidad_a_insertar: 1,
       });
+
+      // Total real del ticket según el backend (Pegasus)
+      setTotalVenta(response.total_venta);
 
       // Actualizar cantidad y total del producto desde la respuesta
       setProducts((prev) =>
@@ -1109,6 +1150,9 @@ export default function SaleScreen({
         scan: productId,
         cantidad_a_insertar: -1,
       });
+
+      // Total real del ticket según el backend (Pegasus)
+      setTotalVenta(response.total_venta);
 
       if (response.cantidad <= 0) {
         // El backend eliminó la línea (cantidad llegó a 0) → sacarla de la lista
@@ -1155,6 +1199,7 @@ export default function SaleScreen({
     }
     setProducts([]);
     setProductQuantities({});
+    setTotalVenta(null);
     sessionStorage.removeItem("currentOrder");
     sessionStorage.removeItem("invoiceData");
     setIsCancelling(false);
@@ -1252,13 +1297,10 @@ export default function SaleScreen({
               </div>
               <div className="text-base md:text-lg lg:text-xl xl:text-5xl font-bold text-primary-600">
                 ₲
-                {products
-                  .reduce((total, product) => {
-                    if (product.total !== undefined) return total + product.total;
-                    const quantity = productQuantities[product.cod_barra] || 1;
-                    return total + product.precio * quantity;
-                  }, 0)
-                  .toLocaleString("es-PY")}
+                {(
+                  totalVenta ??
+                  calculateClientSideTotal(products, productQuantities)
+                ).toLocaleString("es-PY")}
               </div>
             </div>
           </div>
