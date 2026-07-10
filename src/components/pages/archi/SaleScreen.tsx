@@ -110,6 +110,9 @@ export default function SaleScreen({
   const lastCancelRef = useRef<number>(0);
   const pendingWeightProductRef = useRef<{ cod_barra: string; codigo: string } | null>(null);
   const isCallingWeightEndpointRef = useRef(false);
+  // Confirma que la lectura "estable" de la balanza no sea un falso positivo transitorio:
+  // exige la misma lectura en 2 mensajes consecutivos antes de aceptarla como peso final
+  const stableReadingConfirmRef = useRef<{ peso: number; count: number } | null>(null);
 
   // Estados para modo de inserción de productos
   const [productInsertError, setProductInsertError] = useState<string | null>(null);
@@ -509,6 +512,7 @@ export default function SaleScreen({
         if (isNewProduct && (product.peso === "" || product.peso === undefined || product.peso === null)) {
           console.log("⚖️ Producto con peso desconocido, iniciando determinación de peso:", product.codigo);
           pendingWeightProductRef.current = { cod_barra: mappedProduct.cod_barra, codigo: product.codigo };
+          stableReadingConfirmRef.current = null;
           setShowWeightModal(true);
           setWeightValidationStatus("waiting");
           setWeightError("");
@@ -657,6 +661,7 @@ export default function SaleScreen({
       if (isNewProduct && (!response.peso_gramos || response.peso_gramos === "")) {
         console.log("⚖️ Producto con peso desconocido, iniciando determinación de peso:", response.codigo);
         pendingWeightProductRef.current = { cod_barra: productBarcode, codigo: response.codigo };
+        stableReadingConfirmRef.current = null;
         setShowWeightModal(true);
         setWeightValidationStatus("waiting");
         setWeightError("");
@@ -842,6 +847,20 @@ export default function SaleScreen({
         const pending = pendingWeightProductRef.current;
         if (pending) {
           if (data.estable && data.status === "ST" && data.peso > 0 && !isCallingWeightEndpointRef.current) {
+            // Confirmar que la lectura estable no sea un falso positivo transitorio de la balanza:
+            // exigir la misma lectura (± 3g) en 2 mensajes consecutivos antes de aceptarla
+            const CONFIRM_TOLERANCE_KG = 0.003;
+            const REQUIRED_CONFIRMATIONS = 2;
+            const prevConfirm = stableReadingConfirmRef.current;
+            if (prevConfirm && Math.abs(prevConfirm.peso - data.peso) <= CONFIRM_TOLERANCE_KG) {
+              stableReadingConfirmRef.current = { peso: data.peso, count: prevConfirm.count + 1 };
+            } else {
+              stableReadingConfirmRef.current = { peso: data.peso, count: 1 };
+            }
+            if (stableReadingConfirmRef.current.count < REQUIRED_CONFIRMATIONS) {
+              return;
+            }
+
             // Calcular peso conocido de todos los productos excepto el pendiente
             const prods = productsRef.current;
             const qtys = productQuantitiesRef.current;
@@ -880,6 +899,7 @@ export default function SaleScreen({
                     : p
                 ));
                 pendingWeightProductRef.current = null;
+                stableReadingConfirmRef.current = null;
                 isCallingWeightEndpointRef.current = false;
                 // Mostrar éxito
                 setWeightValidationStatus("success");
@@ -1030,6 +1050,7 @@ export default function SaleScreen({
     }
     // Limpiar estado de determinación de peso pendiente
     pendingWeightProductRef.current = null;
+    stableReadingConfirmRef.current = null;
     isCallingWeightEndpointRef.current = false;
     setShowWeightModal(false);
     setWeightValidationStatus("idle");
