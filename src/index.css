@@ -19,3 +19,35 @@ html, body {
   touch-action: pan-x pan-y;
   -ms-content-zooming: none;
 }
+/* ── Terminal de Capasu ─────────────────────────────────────────────────────
+   Poppins servida desde la propia app y no desde Google Fonts: el kiosco
+   corre en la red del local y puede no tener salida a internet, y una fuente
+   que no carga cambia toda la pantalla sin avisar.
+
+   Es la misma tipografia del colector. El cliente pasa de un dispositivo al
+   otro en diez segundos y hasta ahora se veian de dos productos distintos. */
+@font-face {
+  font-family: 'Poppins';
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/Poppins-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/Poppins-SemiBold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/Poppins-Bold.ttf') format('truetype');
+}
+
+/* La regla global de arriba usa `*`, asi que heredar no alcanza: hay que
+   ganarle en especificidad. Se limita a esta pantalla para no tocar Archi. */
+.capasu,
+.capasu * {
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+}
