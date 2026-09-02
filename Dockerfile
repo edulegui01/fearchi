@@ -31,15 +31,26 @@ RUN npm ci
 
 COPY . .
 
-# Vite resuelve las VITE_* aca, no al arrancar: quedan escritas dentro del
-# bundle. Por eso el .env tiene que existir en el momento de compilar, y por
-# eso cambiar la IP del backend obliga a volver a construir la imagen.
-RUN test -f .env || { \
-      echo "FALTA el .env: sin el, VITE_CAPASU_API_URL queda vacio y la"; \
-      echo "terminal pide la compra contra su propio origen. Copiar"; \
-      echo ".env.example y completar las cuatro variables VITE_CAPASU_*."; \
+# El .env tiene que existir Y traer la direccion del backend. Si la variable
+# esta vacia, `BASE` queda en '' y la terminal termina pidiendo la compra
+# contra su propio origen —o sea contra nginx, que devuelve el index en vez
+# de JSON— sin ningun error a la vista.
+#
+# Se comprueba con grep y no haciendo source del archivo: un `.` sobre un
+# .env ejecuta lo que haya adentro y se rompe con cualquier valor sin
+# comillas que traiga un espacio.
+RUN set -e; \
+    if [ ! -f .env ]; then \
+      echo "FALTA el .env. Copiar .env.example y completar las VITE_CAPASU_*."; \
       exit 1; \
-    }
+    fi; \
+    if ! grep -qE '^[[:space:]]*VITE_CAPASU_API_URL[[:space:]]*=[[:space:]]*[^[:space:]]' .env; then \
+      echo "VITE_CAPASU_API_URL esta vacio en el .env."; \
+      echo "Va la IP del servidor vista desde el navegador del kiosco, con"; \
+      echo "/api y sin barra final. Ej: http://10.30.0.232/api"; \
+      exit 1; \
+    fi; \
+    echo "==> $(grep -E '^[[:space:]]*VITE_CAPASU_API_URL' .env | head -1)"
 
 # `npm run build` es `tsc -b && vite build`, y el chequeo de tipos arrastra 40
 # errores previos —27 en components/pages/archi/— que no tienen que ver con la

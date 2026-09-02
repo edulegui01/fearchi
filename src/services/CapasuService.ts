@@ -74,6 +74,52 @@ export class CapasuService {
 
     return (await response.json()) as CapasuSession;
   }
+
+  /**
+   * Marca la compra como cobrada.
+   *
+   * Con esto deja de ser la compra actual de la terminal, asi que el proximo
+   * poll devuelve null y la pantalla vuelve sola al QR: no hace falta ningun
+   * estado extra para limpiarla.
+   */
+  static pay(uuid: string): Promise<void> {
+    return this.close(CAPASU_ENDPOINTS.pay(uuid), 'No se pudo cerrar la compra');
+  }
+
+  /**
+   * Suelta la compra sin cobrarla.
+   *
+   * Como el cobro, deja de ser la compra actual de la terminal y la pantalla
+   * vuelve sola al QR.
+   */
+  static release(uuid: string): Promise<void> {
+    return this.close(CAPASU_ENDPOINTS.release(uuid), 'No se pudo cancelar la compra');
+  }
+
+  /** Las dos salidas de la caja son el mismo POST contra distinta URL. */
+  private static async close(
+    url: string,
+    mensajeError: string,
+    retryOnAuthError = true,
+  ): Promise<void> {
+    let token = this.token();
+    if (!token) token = await this.login();
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+
+    if (response.status === 401 && retryOnAuthError) {
+      localStorage.removeItem(TOKEN_KEY);
+      await this.login();
+      return this.close(url, mensajeError, false);
+    }
+
+    if (!response.ok) {
+      throw new Error(`${mensajeError} (${response.status})`);
+    }
+  }
 }
 
 export default CapasuService;

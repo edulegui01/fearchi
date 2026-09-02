@@ -13,6 +13,12 @@ export const CAPASU_ENDPOINTS = {
   /** Compra traspasada a esta terminal. 404 mientras no llego nadie. */
   currentSession: (terminalCode: string) =>
     `${BASE}/capasu/checkout/${encodeURIComponent(terminalCode)}/session`,
+
+  /** Cierra la compra cobrada. */
+  pay: (uuid: string) => `${BASE}/capasu/sessions/${encodeURIComponent(uuid)}/pay`,
+
+  /** Suelta la compra sin cobrarla y libera la terminal. */
+  release: (uuid: string) => `${BASE}/capasu/sessions/${encodeURIComponent(uuid)}/release`,
 };
 
 /** Codigo de esta terminal. Es lo que viaja dentro del QR. */
