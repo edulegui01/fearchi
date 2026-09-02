@@ -194,7 +194,17 @@ export default function VerticalProductPage() {
             apunta el lector sin que nadie se agache ni estire. */}
         <div className="flex flex-col items-center px-12 -mt-32">
           <div className="bg-white rounded-[48px] p-10 shadow-2xl">
-            <QRCode value={`${CAPASU_TERMINAL_QR_PREFIX}${CAPASU_TERMINAL_CODE}`} size={380} />
+            {/* level="H" y no el "L" por defecto de la libreria. Contra una
+                pantalla el lector dispara su LED y el reflejo vuelve al sensor:
+                con "L" se tolera perder el 7% del codigo y un brillo sobre una
+                esquina ya lo arruina; con "H", el 30%. El contenido es corto
+                —capasu:terminal:SCO-01— asi que la redundancia extra no agranda
+                casi nada la trama. */}
+            <QRCode
+              value={`${CAPASU_TERMINAL_QR_PREFIX}${CAPASU_TERMINAL_CODE}`}
+              size={340}
+              level="H"
+            />
           </div>
 
           <div className="mt-8 text-4xl font-bold" style={{ color: NARANJA }}>
