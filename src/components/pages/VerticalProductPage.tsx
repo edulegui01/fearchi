@@ -139,35 +139,35 @@ export default function VerticalProductPage() {
   }, [cobrada]);
 
   // ── Cobrada ───────────────────────────────────────────────────────────────
+  //
+  // La unica pantalla naranja de punta a punta. Es la que tiene que leerse
+  // desde el otro lado del local: le dice a quien espera que esa caja se
+  // libero, sin que nadie tenga que acercarse a mirar.
   if (cobrada) {
     return (
       <div
-        className="capasu min-h-screen flex items-center justify-center p-10"
-        style={{ backgroundColor: FONDO }}
+        className="capasu min-h-screen flex flex-col items-center justify-center gap-14 p-16"
+        style={{ backgroundColor: NARANJA }}
       >
-        <div className="rounded-[40px] px-24 py-20 flex flex-col items-center gap-10"
-          style={{ backgroundColor: SUPERFICIE }}>
-          <div
-            className="w-40 h-40 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: `${VERDE}1A` }}
-          >
-            <svg viewBox="0 0 24 24" className="w-24 h-24" fill="none">
-              <path
-                d="M4 12.5l5.5 5.5L20 7"
-                stroke={VERDE}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <h2 className="text-6xl font-bold text-center" style={{ color: TINTA }}>
-            ¡Gracias por tu compra!
-          </h2>
-          <p className="text-3xl text-gray-500 text-center">
-            Ya podés retirar tus productos
-          </p>
+        <div className="w-64 h-64 rounded-full bg-white flex items-center justify-center">
+          <svg viewBox="0 0 24 24" className="w-40 h-40" fill="none">
+            <path
+              d="M4 12.5l5.5 5.5L20 7"
+              stroke={NARANJA}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
+        <h2 className="text-7xl font-bold text-center text-white leading-tight">
+          ¡Gracias por
+          <br />
+          tu compra!
+        </h2>
+        <p className="text-4xl text-center text-white/80">
+          Ya podés retirar tus productos
+        </p>
       </div>
     );
   }
@@ -175,62 +175,66 @@ export default function VerticalProductPage() {
   // ── Esperando que alguien escanee el QR ───────────────────────────────────
   if (!session) {
     return (
-      <div
-        className="capasu min-h-screen flex flex-col items-center justify-center gap-12 p-12"
-        style={{ backgroundColor: FONDO }}
-      >
-        <img src={scoLogo} alt="" className="h-20 w-auto object-contain" />
-
-        <div className="rounded-[40px] px-20 py-16 flex flex-col items-center gap-12"
-          style={{ backgroundColor: SUPERFICIE }}>
-          <h2
-            className="text-5xl font-semibold text-center leading-snug"
-            style={{ color: TINTA }}
-          >
+      <div className="capasu min-h-screen flex flex-col" style={{ backgroundColor: FONDO }}>
+        {/* Bloque de color que ocupa la mitad de alto de una pantalla vertical.
+            La instruccion tiene que leerse de pie y a un par de metros, antes
+            de que la persona se acerque. */}
+        <div
+          className="flex-1 rounded-b-[64px] flex flex-col items-center justify-center px-12 pb-40 pt-16"
+          style={{ backgroundColor: NARANJA }}
+        >
+          <h2 className="text-7xl font-bold text-center text-white leading-tight">
             Escaneá este código
             <br />
             con tu colector
           </h2>
+        </div>
 
-          {/* El QR sobre blanco puro y con aire alrededor: los lectores fallan
-              cuando el codigo queda pegado a un borde de color. */}
-          <div className="bg-white p-6 rounded-3xl">
-            <QRCode value={`${CAPASU_TERMINAL_QR_PREFIX}${CAPASU_TERMINAL_CODE}`} size={340} />
+        {/* El QR monta sobre el naranja: queda a media altura, que es donde
+            apunta el lector sin que nadie se agache ni estire. */}
+        <div className="flex flex-col items-center px-12 -mt-32">
+          <div className="bg-white rounded-[48px] p-10 shadow-2xl">
+            <QRCode value={`${CAPASU_TERMINAL_QR_PREFIX}${CAPASU_TERMINAL_CODE}`} size={380} />
           </div>
 
-          <div
-            className="px-8 py-3 rounded-full text-2xl font-semibold"
-            style={{ backgroundColor: `${NARANJA}1A`, color: NARANJA }}
-          >
+          <div className="mt-8 text-4xl font-bold" style={{ color: NARANJA }}>
             Caja {CAPASU_TERMINAL_CODE}
           </div>
         </div>
 
-        {error && (
-          <p className="text-2xl px-8 py-4 rounded-2xl" style={{ color: ROJO, backgroundColor: `${ROJO}14` }}>
-            {error}
-          </p>
-        )}
+        <div className="flex-1 flex flex-col items-center justify-end gap-8 pb-16 px-12">
+          {error && (
+            <p
+              className="text-2xl px-8 py-4 rounded-2xl text-center"
+              style={{ color: ROJO, backgroundColor: `${ROJO}14` }}
+            >
+              {error}
+            </p>
+          )}
+          <img src={scoLogo} alt="" className="h-24 w-auto object-contain" />
+        </div>
       </div>
     );
   }
 
   // ── Compra traspasada ─────────────────────────────────────────────────────
   return (
-    <div
-      className="capasu min-h-screen flex flex-col p-10 gap-6"
-      style={{ backgroundColor: FONDO }}
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="text-5xl font-bold" style={{ color: TINTA }}>
-          Tu compra
-        </h2>
-        <img src={scoLogo} alt="" className="h-14 w-auto object-contain" />
+    <div className="capasu min-h-screen flex flex-col" style={{ backgroundColor: FONDO }}>
+      {/* Encabezado de color: ancla la pantalla y deja claro de un vistazo que
+          esta caja esta ocupada por una compra. */}
+      <div
+        className="rounded-b-[48px] px-12 pt-12 pb-10 flex items-center justify-between"
+        style={{ backgroundColor: NARANJA }}
+      >
+        <h2 className="text-6xl font-bold text-white">Tu compra</h2>
+        <span className="px-7 py-3 rounded-full text-2xl font-semibold text-white bg-white/25">
+          Caja {CAPASU_TERMINAL_CODE}
+        </span>
       </div>
 
       {/* Sin encabezado de columnas: son cuatro palabras que se leen una sola
           vez y despues ocupan lugar. Cada fila ya se explica sola. */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto flex flex-col gap-4 px-12 py-8">
         {session.items.map((item) => (
           <div
             key={item.product_id}
@@ -263,37 +267,41 @@ export default function VerticalProductPage() {
         ))}
       </div>
 
-      <div className="rounded-3xl px-10 py-8 flex items-center justify-between" style={{ backgroundColor: SUPERFICIE }}>
-        <span className="text-4xl font-semibold text-gray-500">Total</span>
-        <span className="text-6xl font-bold" style={{ color: NARANJA }}>
-          {money(session.total)}
-        </span>
-      </div>
-
-      {/* Cancelar existe pero no compite: sin esta salida, una compra
-          abandonada deja la caja ocupada hasta que llegue la siguiente, con el
-          listado de otra persona a la vista. Va en gris y angosto porque pagar
-          es lo que viene a hacer casi todo el mundo. */}
-      <div className="flex gap-5">
-        <button
-          onClick={() => setConfirmandoCancel(true)}
-          className="px-14 py-8 rounded-3xl text-3xl font-semibold text-black/70"
-          style={{ backgroundColor: SECUNDARIO }}
-        >
-          Cancelar
-        </button>
-        <button
-          onClick={handlePagar}
-          className="flex-1 py-8 rounded-3xl text-4xl font-bold text-white"
+      {/* El total y los botones no scrollean: en una pantalla alta, lo que hay
+          que hacer no puede quedar debajo del pliegue. */}
+      <div className="px-12 pb-12 pt-6 flex flex-col gap-6">
+        <div
+          className="rounded-[40px] px-12 py-10 flex items-center justify-between"
           style={{ backgroundColor: NARANJA }}
         >
-          Pagar
-        </button>
+          <span className="text-4xl font-semibold text-white/85">Total</span>
+          <span className="text-7xl font-bold text-white">{money(session.total)}</span>
+        </div>
+
+        {/* Cancelar existe pero no compite: sin esta salida, una compra
+            abandonada deja la caja ocupada hasta que llegue la siguiente, con
+            el listado de otra persona a la vista. */}
+        <div className="flex gap-5">
+          <button
+            onClick={() => setConfirmandoCancel(true)}
+            className="px-14 py-9 rounded-[32px] text-3xl font-semibold text-black/60"
+            style={{ backgroundColor: SECUNDARIO }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handlePagar}
+            className="flex-1 py-9 rounded-[32px] text-5xl font-bold text-white"
+            style={{ backgroundColor: TINTA }}
+          >
+            Pagar
+          </button>
+        </div>
       </div>
 
       {confirmandoCancel && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-10 z-50">
-          <div className="bg-white rounded-[40px] p-16 flex flex-col items-center gap-10 max-w-3xl">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-12 z-50">
+          <div className="bg-white rounded-[48px] p-16 flex flex-col items-center gap-10 w-full max-w-3xl">
             <h3 className="text-5xl font-bold text-center" style={{ color: TINTA }}>
               ¿Cancelar la compra?
             </h3>
@@ -303,14 +311,14 @@ export default function VerticalProductPage() {
             <div className="flex gap-6 w-full">
               <button
                 onClick={() => setConfirmandoCancel(false)}
-                className="flex-1 py-8 rounded-3xl text-3xl font-semibold text-white"
+                className="flex-1 py-8 rounded-[32px] text-3xl font-semibold text-white"
                 style={{ backgroundColor: TINTA }}
               >
                 Volver
               </button>
               <button
                 onClick={handleCancelar}
-                className="flex-1 py-8 rounded-3xl text-3xl font-semibold"
+                className="flex-1 py-8 rounded-[32px] text-3xl font-semibold"
                 style={{ color: ROJO, backgroundColor: `${ROJO}14` }}
               >
                 Sí, cancelar
