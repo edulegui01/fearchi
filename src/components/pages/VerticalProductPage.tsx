@@ -204,6 +204,15 @@ export default function VerticalProductPage() {
               value={`${CAPASU_TERMINAL_QR_PREFIX}${CAPASU_TERMINAL_CODE}`}
               size={340}
               level="H"
+              // Sin esto el navegador suaviza los bordes de cada modulo: el
+              // ancho de modulo no cae en un numero entero de pixeles y las
+              // orillas quedan grises. El lector necesita el salto brusco
+              // blanco/negro, y con los bordes difuminados falla de a ratos.
+              //
+              // Es la diferencia con el QR de la etiqueta, que se lee sin
+              // problemas: ese va en un PDF, rasterizado a mucha mas
+              // resolucion, donde el suavizado no llega a ensuciar el modulo.
+              shapeRendering="crispEdges"
             />
           </div>
 
