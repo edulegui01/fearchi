@@ -6,6 +6,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # El Dockerfile pasó a tener varias etapas: sin esto se construiría la
+      # última, que es nginx con el bundle ya compilado.
+      target: dev
     container_name: fe-sco
     ports:
       - "5173:5173"

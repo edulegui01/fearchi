@@ -1,0 +1,19 @@
+# Despliegue de la terminal de self-checkout.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# El bundle se arma dentro de la imagen, asi que cualquier cambio de codigo
+# —o del .env— necesita el --build. Un restart solo vuelve a servir lo mismo.
+
+services:
+    web:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: web
+        container_name: fe_sco_web
+        restart: always
+        ports:
+            # El 80 del NucBox ya lo tiene el backend (possible_pdv_web), asi
+            # que la terminal se publica en otro puerto.
+            - "${FE_SCO_PORT:-8080}:80"

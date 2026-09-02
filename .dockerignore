@@ -1,0 +1,7 @@
+node_modules
+dist
+.git
+*.log
+
+# Ojo: el .env NO va aca. La compilacion lo necesita para congelar las
+# VITE_* dentro del bundle.

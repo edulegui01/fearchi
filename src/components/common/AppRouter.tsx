@@ -197,10 +197,9 @@ function AppContent({
         }
       />
 
-      <Route
-        path="/vertical-products"
-        element={<VerticalProductPage userName={userName} />}
-      />
+      {/* Terminal de Capasu: la compra la arma el colector, asi que la
+          pantalla ya no recibe el usuario ni escanea nada. */}
+      <Route path="/vertical-products" element={<VerticalProductPage />} />
 
       <Route path="/welcome" element={<WelcomeScreen />} />
 
