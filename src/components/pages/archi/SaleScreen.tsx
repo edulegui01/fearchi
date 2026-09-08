@@ -687,6 +687,11 @@ export default function SaleScreen({
         } else {
           showAlert(t("saleScreen.queryProductError", { message: error.getUserFriendlyMessage() }));
         }
+      } else if (error instanceof Error && error.message) {
+        // El cliente de POSsible PDV lanza Error comun, no ApiError, asi que
+        // sin esta rama un login rechazado o una URL mal configurada salian
+        // como un "error de conexion" generico que no dice donde mirar.
+        showAlert(t("saleScreen.queryProductError", { message: error.message }));
       } else {
         showAlert(t("saleScreen.connectionErrorQuery"));
       }

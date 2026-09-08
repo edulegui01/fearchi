@@ -131,6 +131,15 @@ export interface SaleBackend {
     customerId?: number | null,
   ): Promise<SaleSubmitResult>;
 
+  /**
+   * Deja el backend listo para una compra nueva.
+   *
+   * Corre al apretar "Iniciar compra", antes de pedir cualquier dato: lo que
+   * haya quedado de una compra anterior abandonada tiene que irse ahi, o la
+   * primera lectura del proximo cliente se suma a un carrito ajeno.
+   */
+  beginPurchase(): Promise<void>;
+
   /** Arranca una compra sin nombre: la opcion "Sin Nombre" de la pantalla. */
   beginAnonymousInvoice(): Promise<SaleInvoice>;
 
@@ -329,6 +338,18 @@ class ArchiSaleBackend implements SaleBackend {
     }
 
     return this.cajaConfig;
+  }
+
+  /**
+   * Vacia el ticket vivo con la caja configurada en el equipo.
+   *
+   * Usa `fetchCaja()` y no `getCaja()` a proposito: en este punto todavia no
+   * hay factura elegida, asi que `invoiceData` esta vacio y la caja solo puede
+   * venir del backend.
+   */
+  async beginPurchase(): Promise<void> {
+    const caja = await this.fetchCaja();
+    await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja: Number(caja) });
   }
 
   async beginAnonymousInvoice(): Promise<SaleInvoice> {
@@ -539,6 +560,11 @@ class CapasuSaleBackend implements SaleBackend {
    * de alguien; aca la relacion es nullable, asi que no hace falta inventar un
    * cliente que despues aparezca en los reportes como si fuera real.
    */
+  /** Suelta la compra sin cerrar que haya quedado en la terminal. */
+  beginPurchase(): Promise<void> {
+    return this.clearCart();
+  }
+
   async beginAnonymousInvoice(): Promise<SaleInvoice> {
     return {
       razonSocial: 'Sin Nombre',

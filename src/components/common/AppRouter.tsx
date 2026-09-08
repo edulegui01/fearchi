@@ -22,9 +22,8 @@ import SaleScreen from "../pages/archi/SaleScreen";
 import SaleScreenModern from "../pages/archi/SaleScreenModern";
 import PriceCheckPageModern from "../pages/archi/PriceCheckPageModern";
 import PaymentSelectionPage from "../pages/archi/PaymentSelectionPage";
-import HttpClient from "../../utils/httpClient";
+import { getSaleBackend } from "../../services/sale/SaleBackend";
 import { useLoading } from "./LoadingContext";
-import { ARCHI_ENDPOINTS } from "../../config/endpoints/archi";
 import { InactivityProvider } from "./InactivityProvider";
 
 interface AppRouterProps {
@@ -48,25 +47,18 @@ function AppContent({
   const handleIniciarCompra = async () => {
     try {
       showLoading();
-      // Obtener el valor de caja desde el backend
-      const configResponse = await HttpClient.get<{ caja: string }>(
-        ARCHI_ENDPOINTS.cajaConfig
-      );
-      const caja = configResponse.caja;
 
-      // Limpiar ticket antes de iniciar la compra
-      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, {
-        caja: Number(caja),
-      });
-
-      // Navegar a la selección de tipo de factura
-      navigate("/invoice-type-selection");
+      // Descartar lo que haya quedado de una compra anterior abandonada, o la
+      // primera lectura de este cliente se suma a un carrito ajeno.
+      await getSaleBackend().beginPurchase();
     } catch (error) {
+      // Se sigue igual: dejar al cliente parado frente a la caja por una
+      // limpieza fallida es peor que arrancar con un carrito sucio, que
+      // además puede vaciar desde la propia pantalla de venta.
       console.error("Error al iniciar compra:", error);
-      // En caso de error, navegar de todas formas
-      navigate("/invoice-type-selection");
     } finally {
       hideLoading();
+      navigate("/invoice-type-selection");
     }
   };
 

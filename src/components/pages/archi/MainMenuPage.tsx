@@ -4,6 +4,7 @@ import { barcodeService } from "../../../services/BarcodeService";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { getSaleBackend } from "../../../services/sale/SaleBackend";
+import type { SaleProduct } from "../../../services/sale/SaleBackend";
 import { useLoading } from "../../common/LoadingContext";
 import { useLanguage } from "../../common/LanguageContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
@@ -32,17 +33,6 @@ function UsaFlagIcon() {
   );
 }
 
-interface ConsultaProduct {
-  codigo: string;
-  descripcion: string;
-  precio: number;
-  codigo_barra: string;
-  descripcion_corta: string;
-  nivel3: number;
-  pesable: number;
-  foto: string;
-}
-
 interface MainMenuPageProps {
   onIniciarCompra?: () => void;
   onSalir?: () => void;
@@ -54,7 +44,7 @@ export default function MainMenuPage({
 }: MainMenuPageProps) {
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showDoorModal, setShowDoorModal] = useState(false);
-  const [product, setProduct] = useState<ConsultaProduct | null>(null);
+  const [product, setProduct] = useState<SaleProduct | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
   const { language, setLanguage, t } = useLanguage();
@@ -139,15 +129,22 @@ export default function MainMenuPage({
       try {
         showLoading();
         setErrorMessage("");
-        const response = await HttpClient.get<ConsultaProduct>(
-          ARCHI_ENDPOINTS.consultaProducto(barcode),
-        );
+        const response = await saleBackend.lookupProduct(barcode);
+
+        if (!response) {
+          setProduct(null);
+          setErrorMessage(t("mainMenu.productNotFound", { barcode }));
+          return;
+        }
+
         setProduct(response);
       } catch (error) {
         console.error("Error al consultar producto:", error);
         setProduct(null);
         if (error instanceof ApiError) {
           setErrorMessage(error.getUserFriendlyMessage());
+        } else if (error instanceof Error && error.message) {
+          setErrorMessage(error.message);
         } else {
           setErrorMessage(t("mainMenu.unexpectedError"));
         }
@@ -191,7 +188,7 @@ export default function MainMenuPage({
 
   const handleAddToCart = async () => {
     if (!product) return;
-    const barcode = product.codigo_barra;
+    const barcode = product.barcode;
     setShowPriceModal(false);
     setProduct(null);
     // Verificar dispositivos y proceder con el código de barras del producto consultado
@@ -302,10 +299,10 @@ export default function MainMenuPage({
 
             {product && (
               <div className="border-2 border-primary-200 rounded-lg lg:rounded-xl xl:rounded-2xl p-2 md:p-3 lg:p-4 xl:p-8 mb-2 md:mb-3 lg:mb-4 xl:mb-8">
-                {product.foto && (
+                {product.imagen && (
                   <div className="flex justify-center mb-2 md:mb-3 lg:mb-4 xl:mb-6">
                     <img
-                      src={`${import.meta.env.VITE_API_BASE_URL}${product.foto}`}
+                      src={product.imagen}
                       alt={product.descripcion}
                       className="w-20 h-20 md:w-24 md:h-24 lg:w-32 lg:h-32 xl:w-48 xl:h-48 object-contain rounded-lg xl:rounded-xl"
                       onError={(e) => {
@@ -318,7 +315,7 @@ export default function MainMenuPage({
                   {product.descripcion}
                 </h3>
                 <p className="text-sm md:text-base lg:text-lg xl:text-2xl text-gray-500 mb-1">
-                  {t("mainMenu.codeLabel", { code: product.codigo_barra })}
+                  {t("mainMenu.codeLabel", { code: product.barcode })}
                 </p>
                 <p className="text-xl md:text-2xl lg:text-3xl xl:text-5xl font-bold text-primary-600 mt-1 md:mt-2 lg:mt-3 xl:mt-4">
                   Gs. {product.precio.toLocaleString("es-PY")}
