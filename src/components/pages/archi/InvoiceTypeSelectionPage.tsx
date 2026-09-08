@@ -2,13 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import archiLogo from "../../../assets/archi_logo_al_paso.png";
 import OnScreenKeyboard from "../../components/OnScreenKeyboard";
-import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
+import { getSaleBackend } from "../../../services/sale/SaleBackend";
+import type { SaleCustomer } from "../../../services/sale/SaleBackend";
 import { useLoading } from "../../common/LoadingContext";
-import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useAlert } from "../../common/AlertContext";
 import { useLanguage } from "../../common/LanguageContext";
-import type { VentasAut } from "../../../types";
 
 // Tipo para datos de la balanza
 interface ScaleData {
@@ -67,38 +66,23 @@ export default function InvoiceTypeSelectionPage({
   const [dv, setDv] = useState("");
   const [razonSocial, setRazonSocial] = useState("");
   const [activeField, setActiveField] = useState<ActiveField>("ruc");
-  const [pendingClientData, setPendingClientData] = useState<VentasAut | null>(
-    null,
-  );
   const [pendingFullRuc, setPendingFullRuc] = useState("");
-  const [pendingCaja, setPendingCaja] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
   const { showAlert } = useAlert();
   const { t } = useLanguage();
-  const [cajaValue, setCajaValue] = useState<number | null>(null);
+  const saleBackend = getSaleBackend();
 
   // Estado para validación de balanza vacía
   const [showScaleWarning, setShowScaleWarning] = useState(false);
   const scaleSocketRef = useRef<WebSocket | null>(null);
 
-  // Obtener caja al montar el componente
-  useEffect(() => {
-    const fetchCaja = async () => {
-      try {
-        const response = await HttpClient.get<{ caja: number }>(
-          ARCHI_ENDPOINTS.cajaConfig,
-        );
-        setCajaValue(response.caja);
-      } catch (error) {
-        console.error("Error al obtener configuración de caja:", error);
-      }
-    };
-    fetchCaja();
-  }, []);
-
   // Verificar que la balanza esté vacía al montar
   useEffect(() => {
+    // Sin balanza no hay nada que verificar: abrir el socket solo dejaría un
+    // error de conexión en consola cada vez que alguien entra a la pantalla.
+    if (!saleBackend.usesScale) return;
+
     const scaleUrl =
       import.meta.env.VITE_SOCKET_VALIDATION_SCALE_URL || "ws://localhost:3001";
     console.log(
@@ -142,7 +126,7 @@ export default function InvoiceTypeSelectionPage({
         scaleSocketRef.current = null;
       }
     };
-  }, []);
+  }, [saleBackend.usesScale]);
 
   // Calcular automáticamente el DV cuando cambia el RUC
   useEffect(() => {
@@ -161,41 +145,18 @@ export default function InvoiceTypeSelectionPage({
     let razonSocial = "Sin Nombre";
     let documento = "0";
     let facturaNro = 0;
+    let customerId: number | null = null;
 
     try {
       setErrorMessage("");
       showLoading();
-      const caja = cajaValue;
 
-      if (caja === null) {
-        setErrorMessage(t("invoiceTypeSelection.cajaConfigError"));
-        hideLoading();
-        return;
-      }
+      const invoice = await saleBackend.beginAnonymousInvoice();
 
-      // 1. Buscar datos del cliente
-      const clientResponse = await HttpClient.post<{
-        nombre_cliente: string;
-        documento: string;
-      }>(ARCHI_ENDPOINTS.findClientDetails, {
-        caja,
-        operacion: 4,
-        documento: "44444401-7",
-      });
-
-      // 3. Crear factura con el documento del cliente
-      const invoiceResponse = await HttpClient.post<VentasAut>(
-        ARCHI_ENDPOINTS.createInvoice,
-        {
-          caja,
-          operacion: 6,
-          documento: clientResponse.documento,
-        },
-      );
-
-      razonSocial = invoiceResponse.nombre_cliente;
-      documento = invoiceResponse.documento;
-      facturaNro = invoiceResponse.ticket;
+      razonSocial = invoice.razonSocial;
+      documento = invoice.documento;
+      facturaNro = invoice.facturaNro;
+      customerId = invoice.customerId ?? null;
     } catch (error) {
       console.error("Error al buscar datos del cliente sin nombre:", error);
       if (error instanceof ApiError && error.status === 400) {
@@ -215,6 +176,7 @@ export default function InvoiceTypeSelectionPage({
       razonSocial,
       ruc: documento,
       facturaNro,
+      customerId,
     };
 
     sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));
@@ -265,35 +227,15 @@ export default function InvoiceTypeSelectionPage({
 
     try {
       showLoading();
-      const caja = cajaValue;
 
-      if (caja === null) {
-        showAlert(t("invoiceTypeSelection.cajaConfigError"));
-        hideLoading();
-        return;
-      }
+      const customer = await saleBackend.findCustomer(fullRuc);
 
-      // Hacer petición POST para buscar datos del cliente
-      const response = await HttpClient.post<VentasAut>(
-        ARCHI_ENDPOINTS.findClientDetails,
-        {
-          caja,
-          operacion: 4,
-          documento: fullRuc,
-        },
-      );
-
-      console.log("Respuesta del servidor:", response);
-
-      // Verificar estado de la respuesta
-      if (response.estado === 1) {
-        // Estado 1: Crear factura directamente
-        await createInvoice(caja, fullRuc, response.nombre_cliente, response);
+      if (customer) {
+        // Ya está en el padrón: se factura directo, sin pedirle nada más.
+        await createInvoice(customer);
       } else {
-        // Estado diferente de 1: Mostrar modal para ingresar razón social
-        setPendingClientData(response);
+        // No está: se le pide la razón social para darlo de alta.
         setPendingFullRuc(fullRuc);
-        setPendingCaja(caja);
         setShowModal(false);
         setShowRazonSocialModal(true);
         setActiveField("razonSocial");
@@ -304,7 +246,6 @@ export default function InvoiceTypeSelectionPage({
       if (error instanceof ApiError && error.status === 404) {
         // Cliente no encontrado: mostrar modal para ingresar razón social
         setPendingFullRuc(fullRuc);
-        setPendingCaja(String(cajaValue));
         setShowModal(false);
         setShowRazonSocialModal(true);
         setActiveField("razonSocial");
@@ -315,30 +256,18 @@ export default function InvoiceTypeSelectionPage({
     }
   };
 
-  const createInvoice = async (
-    caja: string | number,
-    fullRuc: string,
-    nombreCliente: string,
-    clientData: VentasAut,
-  ) => {
+  const createInvoice = async (customer: SaleCustomer) => {
     try {
-      // Hacer petición POST para crear la factura
-      const invoiceResponse = await HttpClient.post<VentasAut>(
-        ARCHI_ENDPOINTS.createInvoice,
-        {
-          caja,
-          operacion: 6,
-          documento: fullRuc,
-        },
-      );
+      const invoice = await saleBackend.beginNamedInvoice(customer);
 
       // Guardar datos para factura con nombre
       const invoiceData = {
         invoiceType: "con_nombre",
-        razonSocial: nombreCliente || "",
-        ruc: fullRuc,
-        clientData: clientData,
-        facturaNro: invoiceResponse.ticket,
+        razonSocial: invoice.razonSocial,
+        ruc: invoice.documento,
+        clientData: invoice.clientData,
+        facturaNro: invoice.facturaNro,
+        customerId: invoice.customerId ?? null,
       };
 
       sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));
@@ -387,31 +316,23 @@ export default function InvoiceTypeSelectionPage({
 
     try {
       showLoading();
-      // Hacer POST para registrar el cliente
-      await HttpClient.post(ARCHI_ENDPOINTS.registerClient, {
-        caja: pendingCaja,
-        operacion: 5,
-        documento: pendingFullRuc,
-        nombre: razonSocial.trim(),
-      });
 
-      // Crear factura con el cliente registrado
-      const invoiceResponse = await HttpClient.post<VentasAut>(
-        ARCHI_ENDPOINTS.createInvoice,
-        {
-          caja: Number(pendingCaja),
-          operacion: 6,
-          documento: pendingFullRuc,
-        },
+      // Alta del cliente y, con él ya en el padrón, la factura.
+      const customer = await saleBackend.registerCustomer(
+        pendingFullRuc,
+        razonSocial.trim(),
       );
+
+      const invoice = await saleBackend.beginNamedInvoice(customer);
 
       // Guardar datos para factura con nombre
       const invoiceData = {
         invoiceType: "con_nombre",
-        razonSocial: invoiceResponse.nombre_cliente || razonSocial.trim(),
-        ruc: invoiceResponse.documento || pendingFullRuc,
-        clientData: invoiceResponse,
-        facturaNro: invoiceResponse.ticket,
+        razonSocial: invoice.razonSocial || razonSocial.trim(),
+        ruc: invoice.documento || pendingFullRuc,
+        clientData: invoice.clientData,
+        facturaNro: invoice.facturaNro,
+        customerId: invoice.customerId ?? null,
       };
 
       sessionStorage.setItem("invoiceData", JSON.stringify(invoiceData));
@@ -451,9 +372,7 @@ export default function InvoiceTypeSelectionPage({
   const handleCloseRazonSocialModal = () => {
     setShowRazonSocialModal(false);
     setRazonSocial("");
-    setPendingClientData(null);
     setPendingFullRuc("");
-    setPendingCaja("");
     setActiveField("ruc");
   };
 

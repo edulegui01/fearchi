@@ -3,6 +3,7 @@ import archiLogo from "../../../assets/archi_logo_al_paso.png";
 import { barcodeService } from "../../../services/BarcodeService";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
+import { getSaleBackend } from "../../../services/sale/SaleBackend";
 import { useLoading } from "../../common/LoadingContext";
 import { useLanguage } from "../../common/LanguageContext";
 import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
@@ -57,6 +58,7 @@ export default function MainMenuPage({
   const [errorMessage, setErrorMessage] = useState("");
   const { showLoading, hideLoading } = useLoading();
   const { language, setLanguage, t } = useLanguage();
+  const saleBackend = getSaleBackend();
 
   // Estados de conexión (se verifican bajo demanda)
   const [isScaleConnected, setIsScaleConnected] = useState(true);
@@ -91,13 +93,16 @@ export default function MainMenuPage({
   const checkDevicesAndStartPurchase = async (barcode?: string) => {
     showLoading();
 
-    // Verificar balanza
-    const scaleOk = await checkScaleConnection();
-    setIsScaleConnected(scaleOk);
-    if (!scaleOk) {
-      console.error("❌ MainMenu: Balanza no disponible");
-      hideLoading();
-      return;
+    // Verificar balanza. Donde no hay, exigir que responda dejaría la terminal
+    // sin poder iniciar ninguna compra por un equipo que no existe.
+    if (saleBackend.usesScale) {
+      const scaleOk = await checkScaleConnection();
+      setIsScaleConnected(scaleOk);
+      if (!scaleOk) {
+        console.error("❌ MainMenu: Balanza no disponible");
+        hideLoading();
+        return;
+      }
     }
 
     hideLoading();

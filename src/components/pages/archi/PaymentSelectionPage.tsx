@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import archiLogo from "../../../assets/archi_logo_al_paso.png";
-import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
+import {
+  CAPASU_SESSION_KEY,
+  getSaleBackend,
+} from "../../../services/sale/SaleBackend";
+import type { SaleLine, SalePaymentMethod } from "../../../services/sale/SaleBackend";
 import { useAlert } from "../../common/AlertContext";
-import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useLanguage } from "../../common/LanguageContext";
 
-type PaymentMethod = "tarjeta" | "qr" | null;
+type PaymentMethod = SalePaymentMethod | null;
 type PaymentStatus = "idle" | "loading" | "success" | "error";
 
 interface PaymentResult {
@@ -23,24 +26,12 @@ interface PaymentResult {
   montoVuelto?: number;
 }
 
-interface PaymentResponse {
-  codigoAutorizacion: string;
-  codigoComercio: string;
-  issuerId: string;
-  mensajeDisplay: string;
-  montoVuelto: number;
-  nombreCliente: string;
-  nombreTarjeta: string;
-  nroBoleta: string;
-  saldo: number;
-  pan?: string; // Solo en tarjeta
-}
-
 export default function PaymentSelectionPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showAlert } = useAlert();
   const { t } = useLanguage();
+  const saleBackend = getSaleBackend();
 
   // Estado del modal
   const [showModal, setShowModal] = useState(false);
@@ -59,71 +50,30 @@ export default function PaymentSelectionPage() {
   console.log("💳 PaymentSelectionPage - location.state:", location.state);
   console.log("💳 PaymentSelectionPage - totalAmount:", totalAmount);
 
-  // Obtener número de factura del sessionStorage
-  const getFacturaNro = (): number => {
-    const invoiceData = sessionStorage.getItem("invoiceData");
-    if (invoiceData) {
-      const parsed = JSON.parse(invoiceData);
-      return parsed.facturaNro || 0;
-    }
-    return 0;
-  };
-
-  // Obtener número de caja del sessionStorage
-  const getCaja = (): number => {
-    const invoiceData = sessionStorage.getItem("invoiceData");
-    if (invoiceData) {
-      const parsed = JSON.parse(invoiceData);
-      return parsed.caja || 1;
-    }
-    return 1;
-  };
-
   const processPayment = async (method: PaymentMethod) => {
     if (!method) return;
 
     setPaymentStatus("loading");
 
     try {
-      const endpoint =
-        method === "tarjeta"
-          ? ARCHI_ENDPOINTS.pagoTarjeta
-          : ARCHI_ENDPOINTS.pagoQr;
-      const facturaNro = getFacturaNro();
+      const lines: SaleLine[] = products.map(
+        (product: { cod_barra: string; precio: number; product_id?: number; descripcion: string }) => ({
+          productId: product.product_id,
+          barcode: product.cod_barra,
+          descripcion: product.descripcion,
+          cantidad: productQuantities[product.cod_barra] || 1,
+          precioUnitario: product.precio,
+        }),
+      );
 
-      const caja = getCaja();
-
-      const detalles = products.map((product: { cod_barra: string; precio: number }) => {
-        const cantidad = productQuantities[product.cod_barra] || 1;
-        return {
-          codigoBarras: product.cod_barra,
-          cantidad,
-          totalPrecio: product.precio * cantidad,
-        };
+      const response = await saleBackend.processPayment(method, {
+        totalAmount,
+        lines,
       });
-
-      // Sin timeout para pagos: espera indefinidamente la interacción del cliente
-      const originalTimeout = HttpClient.getTimeout();
-      HttpClient.setTimeout(0);
-
-      let response: PaymentResponse;
-      try {
-        response = await HttpClient.post<PaymentResponse>(
-          endpoint,
-          {
-            caja,
-            facturaNro,
-            monto: totalAmount,
-            detalles,
-          },
-        );
-      } finally {
-        HttpClient.setTimeout(originalTimeout);
-      }
 
       setPaymentResult({
         success: true,
-        message: response.mensajeDisplay || t("paymentSelection.paymentSuccessDefault"),
+        message: response.message || t("paymentSelection.paymentSuccessDefault"),
         codigoAutorizacion: response.codigoAutorizacion,
         mensajeDisplay: response.mensajeDisplay,
         nombreCliente: response.nombreCliente,
@@ -143,6 +93,7 @@ export default function PaymentSelectionPage() {
         sessionStorage.removeItem("currentOrder");
         sessionStorage.removeItem("invoiceData");
         sessionStorage.removeItem("paymentMethod");
+        sessionStorage.removeItem(CAPASU_SESSION_KEY);
         navigate("/menu");
       }, 2000);
     } catch (error) {
@@ -151,6 +102,8 @@ export default function PaymentSelectionPage() {
       let errorMessage = t("paymentSelection.paymentErrorDefault");
       if (error instanceof ApiError) {
         errorMessage = error.getUserFriendlyMessage();
+      } else if (error instanceof Error && error.message) {
+        errorMessage = error.message;
       }
 
       setPaymentResult({

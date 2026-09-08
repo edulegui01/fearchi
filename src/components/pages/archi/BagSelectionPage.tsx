@@ -1,29 +1,12 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import archiLogo from "../../../assets/archi_logo_al_paso.png";
-import HttpClient from "../../../utils/httpClient";
+import { getSaleBackend } from "../../../services/sale/SaleBackend";
 import { useLoading } from "../../common/LoadingContext";
-import { ARCHI_ENDPOINTS } from "../../../config/endpoints/archi";
 import { useAlert } from "../../common/AlertContext";
 import { useLanguage } from "../../common/LanguageContext";
 import { ApiError } from "../../../utils/ApiError";
 import type { Product } from "../../../types";
-
-// Código de la bolsa para el endpoint scan
-const BOLSA_SCAN_CODE = "364";
-
-// Interfaz para la respuesta del endpoint scan
-interface ScanProductResponse {
-  codigo_barras: string;
-  descripcion: string;
-  precio: number;
-  total: number;
-  peso?: string;
-  es_pesable?: boolean;
-  cantidad: number;
-  total_venta: number;
-  imagen?: string;
-}
 
 interface LocationState {
   invoiceType?: string;
@@ -43,6 +26,7 @@ export default function BagSelectionPage() {
   const { showAlert } = useAlert();
   const { t } = useLanguage();
   const [isProcessing, setIsProcessing] = useState(false);
+  const saleBackend = getSaleBackend();
 
   const handleSi = async () => {
     if (isProcessing) return;
@@ -51,32 +35,25 @@ export default function BagSelectionPage() {
     try {
       showLoading();
 
-      // Hacer request al endpoint scan con el código de bolsa
-      const bolsaProduct = await HttpClient.post<ScanProductResponse>(
-        ARCHI_ENDPOINTS.scanProducto,
-        {
-          scan: BOLSA_SCAN_CODE,
-          cantidad_a_insertar: 1,
-        }
-      );
+      // Pedir la bolsa al backend. Contra archi este mismo llamado ya la suma
+      // al ticket vivo; contra POSsible PDV solo devuelve la ficha y la bolsa
+      // viaja después, con el resto del carrito.
+      const bolsaProduct = await saleBackend.addBag();
 
       if (bolsaProduct) {
-        // Construir URL completa de la imagen
-        const imagenUrl = bolsaProduct.imagen
-          ? `${import.meta.env.VITE_API_BASE_URL}${bolsaProduct.imagen}`
-          : "";
-
         // Mapear el producto de la API al formato local
         const mappedBolsa: Product = {
-          cod_barra: bolsaProduct.codigo_barras,
+          cod_barra: bolsaProduct.barcode,
+          codigo: bolsaProduct.codigo,
+          product_id: bolsaProduct.productId,
           descripcion: bolsaProduct.descripcion,
           category_id: 0,
-          name: bolsaProduct.descripcion,
-          sku: bolsaProduct.codigo_barras,
-          imagen: imagenUrl,
+          name: bolsaProduct.descripcionCorta,
+          sku: bolsaProduct.barcode,
+          imagen: bolsaProduct.imagen,
           precio: bolsaProduct.precio,
-          peso: parseFloat(bolsaProduct.peso || "0") || 0,
-          es_pesable: bolsaProduct.es_pesable ?? false,
+          peso: bolsaProduct.pesoGramos ?? 0,
+          es_pesable: bolsaProduct.esPesable,
           purchase_price: 0,
           tax: 0,
           stock: 0,

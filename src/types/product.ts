@@ -2,6 +2,13 @@
 export interface Product {
   cod_barra: string;
   codigo?: string;
+  /**
+   * Id del producto en POSsible PDV.
+   *
+   * Solo viene por ese backend: archi identifica todo por codigo interno, y no
+   * tiene ningun numero equivalente que poner aca.
+   */
+  product_id?: number;
   descripcion: string;
   category_id: number;
   name: string;

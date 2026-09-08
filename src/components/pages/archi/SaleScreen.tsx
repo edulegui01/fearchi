@@ -4,6 +4,9 @@ import archiLogo from "../../../assets/archi_logo_al_paso.png";
 import ProductItem from "../../components/ProductItem";
 import { barcodeService } from "../../../services/BarcodeService";
 import ProductService from "../../../services/product/ProductService";
+import { getSaleBackend } from "../../../services/sale/SaleBackend";
+import type { SaleLine } from "../../../services/sale/SaleBackend";
+import { CAPASU_SESSION_KEY } from "../../../services/sale/SaleBackend";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
 import { useLoading } from "../../common/LoadingContext";
@@ -32,34 +35,12 @@ interface ScaleData {
 
 type WeightValidationStatus = "idle" | "waiting" | "validating" | "success" | "error";
 
-// Tipos para inserción de productos (nuevo modo)
-interface ProductoInsert {
-  cod_barra: string;
-  descripcion: string;
-  cantidad: number;
-  precio_unitario: number;
-  subtotal: number;
-}
-
-interface InsertProductsResponse {
-  success: boolean;
-  total: number;
-  resultados: { cod_barra: string; id: number }[];
-}
-
+// Error que devuelve el backend al rechazar el envío del carrito
 interface InsertProductsError {
   statusCode: number;
   message: string;
   error: string;
   cod_barra?: string; // Presente cuando es error de producto específico
-}
-
-// Tipo para respuesta del endpoint /scanning-peso
-interface ScanningPesoResponse {
-  scanning: string;
-  controlPeso: number | null;
-  toleranciaIndividual: number | null;
-  peso_gramos: number;
 }
 
 export default function SaleScreen({
@@ -108,7 +89,11 @@ export default function SaleScreen({
   const showWeightModalRef = useRef(false);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCancelRef = useRef<number>(0);
-  const pendingWeightProductRef = useRef<{ cod_barra: string; codigo: string } | null>(null);
+  const pendingWeightProductRef = useRef<{
+    cod_barra: string;
+    codigo: string;
+    product_id?: number;
+  } | null>(null);
   const isCallingWeightEndpointRef = useRef(false);
   // Confirma que la lectura "estable" de la balanza no sea un falso positivo transitorio:
   // exige la misma lectura en 2 mensajes consecutivos antes de aceptarla como peso final
@@ -125,8 +110,18 @@ export default function SaleScreen({
     setIsWeightValidationPending(value);
   };
 
-  // Modo de operación: true = usar endpoint insertar-productos, false = lógica actual
-  const useInsertProductsMode = import.meta.env.VITE_USE_INSERT_PRODUCTS_MODE === "true";
+  // Backend contra el que corre esta terminal: el POS de archi o POSsible PDV.
+  const saleBackend = getSaleBackend();
+
+  // Modo de operación: true = carrito local que se manda entero al confirmar,
+  // false = ticket vivo en el servidor, que se actualiza en cada escaneo.
+  //
+  // POSsible PDV no tiene ticket vivo —la compra nace completa al confirmar—,
+  // así que contra ese backend el carrito local no es una opción sino la única
+  // forma posible, y la variable de entorno deja de tener voz.
+  const useInsertProductsMode =
+    !saleBackend.usesLiveTicket ||
+    import.meta.env.VITE_USE_INSERT_PRODUCTS_MODE === "true";
 
   // Mantener refs sincronizadas con el estado
   useEffect(() => {
@@ -148,6 +143,13 @@ export default function SaleScreen({
   // useEffect para monitoreo continuo de peso
   // Se ejecuta cada vez que cambian products o productQuantities
   useEffect(() => {
+    // Sin balanza no hay nada que monitorear, y dejar el peso esperado en cero
+    // evita que el resto de la pantalla crea que tiene algo contra qué validar.
+    if (!saleBackend.usesScale) {
+      expectedWeightRef.current = 0;
+      return;
+    }
+
     let totalWeightGrams = 0;
     for (const product of products) {
       if (product.es_pesable) {
@@ -201,7 +203,7 @@ export default function SaleScreen({
         setWeightValidationPending(false);
       }
     }
-  }, [products, productQuantities]);
+  }, [products, productQuantities, saleBackend.usesScale]);
 
   // Obtener datos de facturación desde location.state o sessionStorage
   const getInvoiceData = () => {
@@ -556,19 +558,6 @@ export default function SaleScreen({
     }
   };
 
-  // Tipo para respuesta de consulta de producto
-  interface ProductoConsultaResponse {
-    codigo: string;
-    codigo_barra: string;
-    descripcion: string;
-    descripcion_corta: string;
-    precio: number;
-    peso_gramos?: string;
-    pesable?: number; // 0 o 1
-    foto?: string;
-    nivel3?: number;
-  }
-
   // Función para escaneo con consulta (consulta endpoint y agrega a la lista)
   const handleBarcodeScannedSimple = async (barcode: string) => {
     if (!isActive) {
@@ -592,29 +581,34 @@ export default function SaleScreen({
       showLoading();
 
       // Consultar datos del producto
-      const response = await HttpClient.get<ProductoConsultaResponse>(
-        ARCHI_ENDPOINTS.consultaProducto(barcode)
-      );
+      const response = await saleBackend.lookupProduct(barcode);
+
+      // Código inexistente. No es una caída del sistema, así que se le avisa
+      // al cliente y la pantalla sigue esperando el próximo escaneo.
+      if (!response) {
+        hideLoading();
+        showAlert(t("saleScreen.productNotFoundInsertMode", { barcode }));
+        return;
+      }
 
       console.log("📦 Producto consultado:", response);
 
       // Guardar código de barras en variable local para evitar problemas de closure
-      const productBarcode = response.codigo_barra || barcode;
-
-      // Construir URL completa de la imagen
-      const imagenUrl = response.foto ? `${import.meta.env.VITE_API_BASE_URL}${response.foto}` : "";
+      const productBarcode = response.barcode;
 
       // Crear producto con datos del endpoint
       const consultedProduct: Product = {
         cod_barra: productBarcode,
-        descripcion: response.descripcion || `Producto ${barcode}`,
+        codigo: response.codigo,
+        product_id: response.productId,
+        descripcion: response.descripcion,
         category_id: 0,
-        name: response.descripcion_corta || response.descripcion || `Producto ${barcode}`,
+        name: response.descripcionCorta,
         sku: response.codigo || barcode,
-        imagen: imagenUrl,
-        precio: response.precio || 0,
-        peso: parseFloat(response.peso_gramos || "0") || 0,
-        es_pesable: response.pesable === 1,
+        imagen: response.imagen,
+        precio: response.precio,
+        peso: response.pesoGramos ?? 0,
+        es_pesable: response.esPesable,
         purchase_price: 0,
         tax: 0,
         stock: 0,
@@ -656,11 +650,17 @@ export default function SaleScreen({
         };
       });
 
-      // Detectar peso_gramos vacío en producto nuevo → determinar peso con balanza
+      // Producto nuevo sin peso cargado → determinarlo con la balanza.
+      // Sin balanza el peso no le importa a nadie, así que el producto entra
+      // al carrito como cualquier otro en vez de frenar la compra.
       const isNewProduct = !productsRef.current.some(p => p.cod_barra === productBarcode);
-      if (isNewProduct && (!response.peso_gramos || response.peso_gramos === "")) {
+      if (saleBackend.usesScale && isNewProduct && response.pesoGramos === null) {
         console.log("⚖️ Producto con peso desconocido, iniciando determinación de peso:", response.codigo);
-        pendingWeightProductRef.current = { cod_barra: productBarcode, codigo: response.codigo };
+        pendingWeightProductRef.current = {
+          cod_barra: productBarcode,
+          codigo: response.codigo,
+          product_id: response.productId,
+        };
         stableReadingConfirmRef.current = null;
         setShowWeightModal(true);
         setWeightValidationStatus("waiting");
@@ -693,68 +693,49 @@ export default function SaleScreen({
     }
   };
 
-  // Obtener número de caja desde invoiceData o configuración
-  const getCaja = (): number => {
-    const invoiceDataStr = sessionStorage.getItem("invoiceData");
-    if (invoiceDataStr) {
-      const parsed = JSON.parse(invoiceDataStr);
-      return parsed.caja || 1;
-    }
-    return 1;
-  };
-
-  // Limpiar ticket y recrear factura (para manejo de errores)
-  const cleanAndRecreateInvoice = async () => {
-    const caja = getCaja();
-
+  // Dejar el backend usable después de un envío fallido
+  const recoverFromSubmitError = async () => {
     try {
-      // 1. Limpiar ticket
-      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja });
-      console.log("✅ Ticket limpiado");
-
-      // 2. Recrear factura con el cliente actual
-      const documento = invoiceData.ruc || "44444401-7";
-      await HttpClient.post(ARCHI_ENDPOINTS.createInvoice, {
-        caja,
-        operacion: 6,
-        documento,
-      });
-      console.log("✅ Factura recreada para:", documento);
+      await saleBackend.recoverFromSubmitError();
     } catch (error) {
-      console.error("❌ Error al limpiar/recrear factura:", error);
+      console.error("❌ Error al recuperar el backend:", error);
     }
   };
 
-  // Insertar productos en el backend
+  // Mandar al backend el carrito que el cliente armó escaneando
   const insertProductsToBackend = async (): Promise<boolean> => {
-    const caja = getCaja();
+    const lines: SaleLine[] = products.map((product) => ({
+      productId: product.product_id,
+      barcode: product.cod_barra,
+      descripcion: product.descripcion,
+      cantidad: productQuantities[product.cod_barra] || 1,
+      precioUnitario: product.precio,
+    }));
 
-    // Construir payload
-    const productosPayload: ProductoInsert[] = products.map((product) => {
-      const cantidad = productQuantities[product.cod_barra] || 1;
-      return {
-        cod_barra: product.cod_barra,
-        descripcion: product.descripcion,
-        cantidad,
-        precio_unitario: product.precio,
-        subtotal: product.precio * cantidad,
-      };
-    });
-
-    const payload = {
-      caja,
-      productos: productosPayload,
-    };
-
-    console.log("📤 Enviando productos al backend:", payload);
+    console.log("📤 Enviando productos al backend:", lines);
 
     try {
-      const response = await HttpClient.post<InsertProductsResponse>(
-        ARCHI_ENDPOINTS.insertarProductos,
-        payload
+      const result = await saleBackend.submitCart(
+        lines,
+        // Sin balanza no se midió nada: mandar el peso teórico de los
+        // productos haría pasar por medición algo que nadie puso en un plato.
+        saleBackend.usesScale
+          ? Math.round(expectedWeightRef.current * 1000)
+          : undefined,
+        // Nulo cuando la compra es "sin nombre", que es lo que devuelve la
+        // pantalla de facturación al no haber cliente elegido.
+        invoiceData.customerId ?? null,
       );
 
-      console.log("✅ Productos insertados exitosamente:", response);
+      console.log("✅ Carrito enviado exitosamente:", result);
+
+      // POSsible PDV crea la compra recién al confirmar, y el uuid es lo único
+      // que la identifica después: sin guardarlo, el paso de cobro no tendría
+      // contra qué cerrarla.
+      if (result.sessionUuid) {
+        sessionStorage.setItem(CAPASU_SESSION_KEY, result.sessionUuid);
+      }
+
       return true;
     } catch (error) {
       console.error("❌ Error al insertar productos:", error);
@@ -774,11 +755,11 @@ export default function SaleScreen({
         }
 
         // Limpiar y recrear factura
-        await cleanAndRecreateInvoice();
+        await recoverFromSubmitError();
       } else {
         setProductInsertError(t("saleScreen.insertConnectionError"));
         showAlert(t("saleScreen.connectionErrorRetry"));
-        await cleanAndRecreateInvoice();
+        await recoverFromSubmitError();
       }
 
       return false;
@@ -886,12 +867,11 @@ export default function SaleScreen({
               isCallingWeightEndpointRef.current = true;
               setWeightValidationStatus("validating");
 
-              HttpClient.post<ScanningPesoResponse>(
-                ARCHI_ENDPOINTS.scanningPeso,
-                { scanning: pending.codigo, peso_gramos: differenceGrams }
-              ).then((response) => {
-                console.log("✅ /scanning-peso respuesta:", response);
-                const newPeso = response.peso_gramos;
+              saleBackend.saveProductWeight(
+                { codigo: pending.codigo, productId: pending.product_id },
+                differenceGrams,
+              ).then((newPeso) => {
+                console.log("✅ Peso guardado:", newPeso);
                 // Actualizar peso del producto en la lista
                 setProducts(prev => prev.map(p =>
                   p.cod_barra === pending.cod_barra
@@ -912,7 +892,7 @@ export default function SaleScreen({
                   successTimeoutRef.current = null;
                 }, 1500);
               }).catch((error) => {
-                console.error("❌ Error en /scanning-peso:", error);
+                console.error("❌ Error al guardar el peso:", error);
                 isCallingWeightEndpointRef.current = false;
                 setWeightError(t("saleScreen.weightDeterminationError"));
                 setWeightValidationStatus("error");
@@ -1072,11 +1052,10 @@ export default function SaleScreen({
     setIsCancelling(true);
 
     try {
-      // Limpiar ticket en el servidor
-      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja: 1 });
-      console.log("✅ Ticket limpiado en el servidor");
+      await saleBackend.clearCart();
+      console.log("✅ Carrito limpiado en el servidor");
     } catch (error) {
-      console.error("❌ Error al limpiar ticket:", error);
+      console.error("❌ Error al limpiar el carrito:", error);
       // Continuar con la cancelación aunque falle el request
     }
 
@@ -1087,6 +1066,7 @@ export default function SaleScreen({
     // Limpiar sessionStorage
     sessionStorage.removeItem("currentOrder");
     sessionStorage.removeItem("invoiceData");
+    sessionStorage.removeItem(CAPASU_SESSION_KEY);
     setIsCancelling(false);
     navigate("/menu");
   };
@@ -1099,27 +1079,31 @@ export default function SaleScreen({
     const product = productsRef.current.find((p) => p.cod_barra === productId);
     if (!product) return;
 
-    const scanValue = product.es_pesable ? (product.codigo || product.cod_barra) : productId;
-    const amountToRemove = product.es_pesable
-      ? -(product.peso || 0)
-      : -(product.cantidad ?? productQuantitiesRef.current[productId] ?? 1);
+    // Con ticket vivo hay que descontar la línea en el servidor antes de
+    // sacarla de la pantalla; con carrito local todavía no existe allá.
+    if (saleBackend.usesLiveTicket) {
+      const scanValue = product.es_pesable ? (product.codigo || product.cod_barra) : productId;
+      const amountToRemove = product.es_pesable
+        ? -(product.peso || 0)
+        : -(product.cantidad ?? productQuantitiesRef.current[productId] ?? 1);
 
-    try {
-      const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
-        scan: scanValue,
-        cantidad_a_insertar: amountToRemove,
-      });
+      try {
+        const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
+          scan: scanValue,
+          cantidad_a_insertar: amountToRemove,
+        });
 
-      // Total real del ticket según el backend (Pegasus)
-      setTotalVenta(response.total_venta);
-    } catch (error) {
-      console.error("Error al eliminar producto:", error);
-      if (error instanceof ApiError) {
-        showAlert(t("saleScreen.errorWithMessage", { message: error.message }));
-      } else {
-        showAlert(t("saleScreen.deleteProductErrorGeneric"));
+        // Total real del ticket según el backend (Pegasus)
+        setTotalVenta(response.total_venta);
+      } catch (error) {
+        console.error("Error al eliminar producto:", error);
+        if (error instanceof ApiError) {
+          showAlert(t("saleScreen.errorWithMessage", { message: error.message }));
+        } else {
+          showAlert(t("saleScreen.deleteProductErrorGeneric"));
+        }
+        return;
       }
-      return;
     }
 
     setProducts((prev) =>
@@ -1133,6 +1117,15 @@ export default function SaleScreen({
   };
 
   const handleIncrementQuantity = async (productId: string) => {
+    // Sin ticket vivo el carrito es local: mover el estado ya es todo el cambio.
+    if (!saleBackend.usesLiveTicket) {
+      setProductQuantities((prev) => ({
+        ...prev,
+        [productId]: (prev[productId] || 1) + 1,
+      }));
+      return;
+    }
+
     try {
       const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: productId,
@@ -1166,6 +1159,16 @@ export default function SaleScreen({
   };
 
   const handleDecrementQuantity = async (productId: string) => {
+    // Igual que al incrementar, pero sin bajar de 1: quitar la línea entera es
+    // lo que hace el botón de eliminar, y hacerlo también acá sorprendería.
+    if (!saleBackend.usesLiveTicket) {
+      setProductQuantities((prev) => ({
+        ...prev,
+        [productId]: Math.max((prev[productId] || 1) - 1, 1),
+      }));
+      return;
+    }
+
     try {
       const response = await HttpClient.post<ScannedProduct>(ARCHI_ENDPOINTS.scanProducto, {
         scan: productId,
@@ -1213,16 +1216,17 @@ export default function SaleScreen({
     setIsCancelling(true);
     setShowClearModal(false);
     try {
-      await HttpClient.post(ARCHI_ENDPOINTS.ticketClean, { caja: 1 });
-      console.log("✅ Ticket limpiado en el servidor");
+      await saleBackend.clearCart();
+      console.log("✅ Carrito limpiado en el servidor");
     } catch (error) {
-      console.error("❌ Error al limpiar ticket:", error);
+      console.error("❌ Error al limpiar el carrito:", error);
     }
     setProducts([]);
     setProductQuantities({});
     setTotalVenta(null);
     sessionStorage.removeItem("currentOrder");
     sessionStorage.removeItem("invoiceData");
+    sessionStorage.removeItem(CAPASU_SESSION_KEY);
     setIsCancelling(false);
   };
 
