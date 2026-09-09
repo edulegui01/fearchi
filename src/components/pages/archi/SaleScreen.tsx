@@ -335,7 +335,16 @@ export default function SaleScreen({
       sessionStorage.removeItem("pendingBarcode");
       // Delay para asegurar que el componente esté listo
       setTimeout(() => {
-        handleBarcodeScanned(pendingBarcode);
+        // Mismo criterio que el listener del escáner: este código viene del
+        // menú, pero es un escaneo como cualquier otro y tiene que ir al
+        // backend configurado. Llamar directo a handleBarcodeScanned hacía que
+        // el primer producto de cada compra —el que la inicia— se consultara
+        // contra el POS de archi aun con la terminal corriendo contra POSsible
+        // PDV, y ese endpoint devolvía un 405 de nginx.
+        const handler = useInsertProductsMode
+          ? handleBarcodeScannedSimple
+          : handleBarcodeScanned;
+        handler(pendingBarcode);
       }, 100);
     }
   }, []);
