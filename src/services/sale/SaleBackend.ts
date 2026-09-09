@@ -83,7 +83,12 @@ export interface SalePaymentOrder {
  * que nunca ocurrio se vea igual que uno real.
  */
 export interface SalePaymentResult {
-  message: string;
+  /**
+   * Texto que encabeza el modal. Opcional: sin pasarela no hay nada
+   * particular que decir, y la pantalla ya tiene su propio mensaje de exito
+   * traducido para ese caso.
+   */
+  message?: string;
   codigoAutorizacion?: string;
   mensajeDisplay?: string;
   nombreCliente?: string;
@@ -634,10 +639,10 @@ class CapasuSaleBackend implements SaleBackend {
     await CapasuService.pay(uuid);
     sessionStorage.removeItem(CAPASU_SESSION_KEY);
 
-    return {
-      message: 'Pago simulado. La compra quedo cerrada.',
-      mensajeDisplay: 'PAGO SIMULADO',
-    };
+    // Sin campos: el cliente que esta frente a la caja no tiene por que leer
+    // como esta armada la terminal por dentro, y la pantalla ya muestra su
+    // mensaje de exito traducido cuando el resultado no trae ninguno.
+    return {};
   }
 
   /** La bolsa es un producto mas: se la busca por su codigo de barras. */
