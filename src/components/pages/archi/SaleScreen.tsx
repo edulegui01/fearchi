@@ -5,6 +5,7 @@ import ProductItem from "../../components/ProductItem";
 import { barcodeService } from "../../../services/BarcodeService";
 import ProductService from "../../../services/product/ProductService";
 import { getSaleBackend } from "../../../services/sale/SaleBackend";
+import VisionService from "../../../services/VisionService";
 import type { SaleLine } from "../../../services/sale/SaleBackend";
 import { CAPASU_SESSION_KEY } from "../../../services/sale/SaleBackend";
 import HttpClient from "../../../utils/httpClient";
@@ -122,6 +123,14 @@ export default function SaleScreen({
   const useInsertProductsMode =
     !saleBackend.usesLiveTicket ||
     import.meta.env.VITE_USE_INSERT_PRODUCTS_MODE === "true";
+
+  // Arrancar la cámara al entrar en la pantalla de venta. La sesión de visión
+  // dura exactamente lo que dura la compra: se suelta sola cuando el cobro se
+  // aprueba, así que acá no hay nada que limpiar al desmontar. Volver a esta
+  // pantalla dentro de la misma compra no reinicia lo ya reconocido.
+  useEffect(() => {
+    VisionService.abrir();
+  }, []);
 
   // Mantener refs sincronizadas con el estado
   useEffect(() => {
@@ -763,9 +772,14 @@ export default function SaleScreen({
           setProductInsertError(t("saleScreen.productInsertErrorWithCode", { code: errorData.cod_barra, message: errorData.message }));
           showAlert(t("saleScreen.productInsertErrorWithCodeShort", { message: errorData.message, code: errorData.cod_barra }));
         } else {
-          // Error genérico
-          setProductInsertError(errorData?.message || t("saleScreen.insertProductsErrorGeneric"));
-          showAlert(errorData?.message || t("saleScreen.insertProductsErrorGeneric"));
+          // Error genérico. `error.message` ya trae lo que dijo el backend, o
+          // la operación y el código si no dijo nada: se prefiere a un texto
+          // fijo que no distingue un carrito ya cerrado de un producto sin
+          // stock.
+          const detalle = errorData?.message || error.message
+            || t("saleScreen.insertProductsErrorGeneric");
+          setProductInsertError(detalle);
+          showAlert(detalle);
         }
 
         // Limpiar y recrear factura
@@ -1024,6 +1038,12 @@ export default function SaleScreen({
     console.log("💰 Products:", currentProducts);
     console.log("💰 ProductQuantities:", currentQuantities);
 
+    // Avisarle a la cámara qué se está por cobrar. Va sin await a propósito:
+    // el veredicto se muestra en la pantalla de visión, no acá, y la venta no
+    // puede quedar esperando a una máquina que puede estar apagada.
+    // Este es el único punto por el que pasan los dos botones de pagar.
+    VisionService.check(currentProducts.map((p) => p.cod_barra));
+
     setShowWeightModal(false);
     navigate("/payment-selection", {
       state: {
@@ -1064,10 +1084,16 @@ export default function SaleScreen({
   const handleCancelar = async () => {
     console.log("Cancelando orden...");
     setIsCancelling(true);
+    // Compra abandonada: soltar la cámara. Si no, el modelo se queda cargado
+    // hasta la próxima venta y la canasta arrastra productos de un cliente que
+    // ya se fue.
+    VisionService.cerrar();
 
     try {
-      await saleBackend.clearCart();
-      console.log("✅ Carrito limpiado en el servidor");
+      // abandonSale y no clearCart: si el carrito llegó a confirmarse, vaciarlo
+      // no alcanza — la compra ya existe del otro lado y hay que soltarla.
+      await saleBackend.abandonSale();
+      console.log("✅ Compra abandonada y carrito limpiado en el servidor");
     } catch (error) {
       console.error("❌ Error al limpiar el carrito:", error);
       // Continuar con la cancelación aunque falle el request

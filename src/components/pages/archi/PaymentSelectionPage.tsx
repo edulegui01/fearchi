@@ -7,6 +7,7 @@ import {
   getSaleBackend,
 } from "../../../services/sale/SaleBackend";
 import type { SaleLine, SalePaymentMethod } from "../../../services/sale/SaleBackend";
+import VisionService from "../../../services/VisionService";
 import { useAlert } from "../../common/AlertContext";
 import { useLanguage } from "../../common/LanguageContext";
 
@@ -40,6 +41,9 @@ export default function PaymentSelectionPage() {
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(
     null,
   );
+  // Soltar la compra habla con el backend y tarda: sin esto el botón acepta un
+  // segundo toque y se manda a liberar dos veces.
+  const [isGoingBack, setIsGoingBack] = useState(false);
 
   // Obtener datos del state (productos, total, etc.)
   const stateData = location.state || {};
@@ -154,15 +158,36 @@ export default function PaymentSelectionPage() {
     setPaymentResult(null);
   };
 
-  const handleBack = () => {
-    navigate("/sale", {
-      state: {
-        fromPaymentBack: true,
-        products,
-        productQuantities,
-        totalAmount,
-      },
-    });
+  /**
+   * Volver = abandonar la compra y salir al menu.
+   *
+   * Antes regresaba al listado con el carrito puesto, pero para llegar hasta
+   * aca el carrito YA se confirmo: la compra existe en POSsible PDV y la
+   * terminal quedo ocupada. Volver y confirmar de nuevo chocaba con un 409 y
+   * dejaba al cliente trabado. Abandonar y salir deja la terminal limpia para
+   * el proximo, que es la unica salida que no miente sobre lo que quedo hecho.
+   */
+  const handleBack = async () => {
+    if (isGoingBack) return;      // el boton tarda: sin esto se dispara doble
+    setIsGoingBack(true);
+
+    try {
+      await saleBackend.abandonSale();
+    } catch (error) {
+      // Si el backend no pudo soltar la compra igual hay que salir: dejar al
+      // cliente atrapado en el cobro es peor que una compra colgada, que el
+      // proximo "Iniciar compra" limpia con beginPurchase().
+      console.error("No se pudo abandonar la compra:", error);
+    }
+
+    // La camara se suelta tambien: esta compra no va a llegar a cobrarse.
+    VisionService.cerrar();
+
+    sessionStorage.removeItem("currentOrder");
+    sessionStorage.removeItem("invoiceData");
+    sessionStorage.removeItem("paymentMethod");
+    sessionStorage.removeItem(CAPASU_SESSION_KEY);
+    navigate("/menu");
   };
 
   return (
@@ -250,7 +275,8 @@ export default function PaymentSelectionPage() {
         {/* Botón Volver */}
         <button
           onClick={handleBack}
-          className="mt-2 md:mt-3 lg:mt-4 xl:mt-8 w-full bg-gray-300 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 px-6 md:px-8 lg:px-10 xl:px-16 rounded-lg xl:rounded-xl shadow-lg transition-colors duration-200 text-base md:text-lg lg:text-xl xl:text-3xl"
+          disabled={isGoingBack}
+          className="mt-2 md:mt-3 lg:mt-4 xl:mt-8 w-full bg-gray-300 text-gray-800 font-bold py-2 md:py-3 lg:py-4 xl:py-6 px-6 md:px-8 lg:px-10 xl:px-16 rounded-lg xl:rounded-xl shadow-lg transition-colors duration-200 text-base md:text-lg lg:text-xl xl:text-3xl disabled:opacity-60"
         >
           {t("common.volver")}
         </button>

@@ -1,3 +1,4 @@
+import { ApiError } from '../utils/ApiError';
 import { CAPASU_ENDPOINTS } from '../config/endpoints/capasu';
 import type {
   CapasuCartItem,
@@ -33,7 +34,7 @@ export class CapasuService {
     });
 
     if (!response.ok) {
-      throw new Error(`Login de Capasu fallido (${response.status})`);
+      throw await this.fail(response, 'Login de Capasu fallido');
     }
 
     const data = (await response.json()) as { token: string };
@@ -53,6 +54,25 @@ export class CapasuService {
    * Un 401 es token vencido: se renueva una sola vez y se reintenta. Mas de una
    * seria un lazo, porque si el login nuevo tampoco sirve nada va a cambiar.
    */
+  /**
+   * Error de una respuesta que no salio bien, con el motivo que dio el backend.
+   *
+   * Va un ApiError y no un Error pelado a proposito: las pantallas separan por
+   * `instanceof ApiError` el "el backend rechazo esto" del "no se pudo hablar
+   * con el backend", y un Error comun caia siempre del lado equivocado. Por eso
+   * un 409 al cerrar el carrito —la terminal ya tenia una compra abierta— se
+   * mostraba como error de conexion y mandaba a revisar la red.
+   */
+  private static async fail(response: Response, que: string): Promise<ApiError> {
+    const error = await ApiError.fromResponse(response, response.url);
+    // Manda lo que haya dicho el backend. Si no dijo nada, al menos que se
+    // sepa que operacion fallo y con que codigo.
+    if (!error.response?.message && !error.response?.error) {
+      error.message = `${que} (${response.status})`;
+    }
+    return error;
+  }
+
   private static async request(
     url: string,
     init: RequestInit = {},
@@ -101,7 +121,7 @@ export class CapasuService {
     if (response.status === 404) return null;
 
     if (!response.ok) {
-      throw new Error(`No se pudo consultar la compra (${response.status})`);
+      throw await this.fail(response, 'No se pudo consultar la compra');
     }
 
     return (await response.json()) as CapasuSession;
@@ -120,7 +140,7 @@ export class CapasuService {
     if (response.status === 404) return null;
 
     if (!response.ok) {
-      throw new Error(`No se pudo consultar el producto (${response.status})`);
+      throw await this.fail(response, 'No se pudo consultar el producto');
     }
 
     return (await response.json()) as CapasuProduct;
@@ -140,7 +160,7 @@ export class CapasuService {
     );
 
     if (!response.ok) {
-      throw new Error(`No se pudo guardar el peso (${response.status})`);
+      throw await this.fail(response, 'No se pudo guardar el peso');
     }
 
     return (await response.json()) as CapasuProduct;
@@ -159,7 +179,7 @@ export class CapasuService {
     if (response.status === 404) return null;
 
     if (!response.ok) {
-      throw new Error(`No se pudo consultar el cliente (${response.status})`);
+      throw await this.fail(response, 'No se pudo consultar el cliente');
     }
 
     return (await response.json()) as CapasuCustomer;
@@ -173,7 +193,7 @@ export class CapasuService {
     });
 
     if (!response.ok) {
-      throw new Error(`No se pudo registrar el cliente (${response.status})`);
+      throw await this.fail(response, 'No se pudo registrar el cliente');
     }
 
     return (await response.json()) as CapasuCustomer;
@@ -202,7 +222,7 @@ export class CapasuService {
     );
 
     if (!response.ok) {
-      throw new Error(`No se pudo cerrar el carrito (${response.status})`);
+      throw await this.fail(response, 'No se pudo cerrar el carrito');
     }
 
     return (await response.json()) as CapasuSession;
@@ -220,7 +240,7 @@ export class CapasuService {
     });
 
     if (!response.ok) {
-      throw new Error(`No se pudo limpiar el carrito (${response.status})`);
+      throw await this.fail(response, 'No se pudo limpiar el carrito');
     }
   }
 
@@ -250,7 +270,7 @@ export class CapasuService {
     const response = await this.request(url, { method: 'POST' });
 
     if (!response.ok) {
-      throw new Error(`${mensajeError} (${response.status})`);
+      throw await this.fail(response, mensajeError);
     }
   }
 }

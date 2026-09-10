@@ -180,6 +180,16 @@ export interface SaleBackend {
   /** Descarta lo que haya cargado, para arrancar de cero. */
   clearCart(): Promise<void>;
 
+  /**
+   * Abandona la compra en curso, este confirmada o no.
+   *
+   * No alcanza con clearCart: una vez confirmado el carrito, POSsible PDV ya
+   * creo la compra y la terminal queda ocupada. Volver atras y confirmar de
+   * nuevo choca con un 409, asi que salir de la pantalla de cobro tiene que
+   * deshacer tambien lo que ya se creo, no solo vaciar el carrito local.
+   */
+  abandonSale(): Promise<void>;
+
   /** Guarda el peso unitario recien medido. Devuelve el que quedo guardado. */
   saveProductWeight(ref: SaleWeightRef, weightGrams: number): Promise<number>;
 
@@ -307,6 +317,11 @@ class ArchiSaleBackend implements SaleBackend {
     });
 
     return {};
+  }
+
+  /** En archi el ticket vive en el servidor: vaciarlo es todo el abandono. */
+  abandonSale(): Promise<void> {
+    return this.clearCart();
   }
 
   async clearCart(): Promise<void> {
@@ -687,6 +702,29 @@ class CapasuSaleBackend implements SaleBackend {
 
   clearCart(): Promise<void> {
     return CapasuService.clearCart(this.terminalCode);
+  }
+
+  /**
+   * Libera la compra creada al confirmar el carrito y despues vacia.
+   *
+   * El uuid solo existe si se llego a confirmar; si no esta, no hay nada que
+   * liberar y basta con el carrito. Los dos pasos se intentan por separado a
+   * proposito: que falle liberar no puede impedir que la terminal quede limpia
+   * para el proximo cliente, que es lo que de verdad importa.
+   */
+  async abandonSale(): Promise<void> {
+    const uuid = sessionStorage.getItem(CAPASU_SESSION_KEY);
+
+    if (uuid) {
+      try {
+        await CapasuService.release(uuid);
+      } catch (error) {
+        console.error('No se pudo liberar la compra en POSsible PDV:', error);
+      }
+      sessionStorage.removeItem(CAPASU_SESSION_KEY);
+    }
+
+    await this.clearCart();
   }
 
   async saveProductWeight(ref: SaleWeightRef, weightGrams: number): Promise<number> {
