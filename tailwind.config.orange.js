@@ -22,18 +22,33 @@ export default {
         heartbeat: 'heartbeat 2s ease-in-out infinite',
       },
       colors: {
+        /**
+         * Naranja de POSsible market.
+         *
+         * El 500 es el naranja exacto del logo (#f39854, muestreado del PNG);
+         * el resto de la escala mantiene ese tono (H 26deg) y solo mueve
+         * luminosidad y saturacion, asi que la marca no se desarma en ningun
+         * componente.
+         *
+         * El 600 y el 700 son mas profundos que el logo a proposito. La app
+         * pinta 90 superficies con `primary-600` y casi todas llevan texto
+         * blanco encima: sobre el naranja del logo ese texto queda en 2.2:1 y
+         * no se lee de parado frente a la terminal. Con #da711f sube a 3.3:1 y
+         * con el 700 a 5.1:1. El logo se sigue viendo en su color porque va
+         * sobre blanco, no sobre un boton.
+         */
         primary: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
-          950: '#431407',
+          50: '#fff6ef',
+          100: '#ffe9d8',
+          200: '#fdd2af',
+          300: '#f9b583',
+          400: '#f6a970',
+          500: '#f39854',
+          600: '#da711f',
+          700: '#ae5416',
+          800: '#8a4211',
+          900: '#723816',
+          950: '#3f1c07',
         },
         secondary: {
           50: '#ffffff',

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import archiLogo from "../../../assets/archi_logo_al_paso.png";
+import marketLogo from "../../../assets/possible_market_logo.png";
+import caritaPosible from "../../../assets/carita_posible.png";
 import ProductItem from "../../components/ProductItem";
 import { barcodeService } from "../../../services/BarcodeService";
 import ProductService from "../../../services/product/ProductService";
@@ -1277,7 +1278,7 @@ export default function SaleScreen({
         <div className="bg-primary-50 rounded-lg shadow-sm p-2 md:p-2 lg:p-3 xl:p-5 mb-1 md:mb-2 lg:mb-3 xl:mb-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             {/* Logo achicado */}
-            <img src={archiLogo} alt="Archi" className="h-auto w-16 md:w-20 lg:w-28 xl:w-48" />
+            <img src={marketLogo} alt="POSsible market" className="h-auto w-16 md:w-20 lg:w-28 xl:w-48" />
             {/* Nombre del cliente */}
             <span className="text-sm md:text-base lg:text-lg xl:text-2xl font-medium text-primary-600">
               {userName}
@@ -1294,7 +1295,7 @@ export default function SaleScreen({
           {/* Logo de fondo */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <img
-              src={archiLogo}
+              src={marketLogo}
               alt=""
               className="w-1/2 max-w-md opacity-10"
             />
@@ -1441,7 +1442,7 @@ export default function SaleScreen({
       {isCancelling && (
         <div className="fixed inset-0 bg-white/80 flex flex-col items-center justify-center z-50">
           <img
-            src={archiLogo}
+            src={caritaPosible}
             alt="Cargando..."
             className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 object-contain animate-spin"
           />
@@ -1493,7 +1494,7 @@ export default function SaleScreen({
 
                 {/* Logo girando */}
                 <img
-                  src={archiLogo}
+                  src={caritaPosible}
                   alt="Cargando..."
                   className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-32 xl:h-32 object-contain animate-spin"
                 />

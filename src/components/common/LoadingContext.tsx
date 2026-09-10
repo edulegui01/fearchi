@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback } from "react";
-import archiLogo from "../../assets/archi_logo_al_paso.png";
+import caritaPosible from "../../assets/carita_posible.png";
 
 interface LoadingContextType {
   loading: boolean;
@@ -25,7 +25,7 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
       {loading && (
         <div className="fixed inset-0 bg-white/80 flex flex-col items-center justify-center z-50">
           <img
-            src={archiLogo}
+            src={caritaPosible}
             alt="Cargando..."
             className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 object-contain animate-spin"
           />

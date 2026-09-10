@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import archiLogo from '../../../assets/archi_logo_al_paso.png';
+import marketLogo from '../../../assets/possible_market_logo.png';
 import ProductItemModern from '../../components/ProductItemModern';
 import { barcodeService } from '../../../services/BarcodeService';
 import ProductService from '../../../services/product/ProductService';
@@ -186,7 +186,7 @@ export default function SaleScreenModern({ userName: propUserName = "Usuario", c
     <div
       className="h-screen flex flex-col p-2 md:p-3 lg:p-4 xl:p-7 relative overflow-hidden"
       style={{
-        backgroundImage: `url(${archiLogo})`,
+        backgroundImage: `url(${marketLogo})`,
         backgroundPosition: 'center',
         backgroundSize: '85%',
         backgroundRepeat: 'no-repeat',

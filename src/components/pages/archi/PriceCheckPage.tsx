@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import archiLogo from "../../../assets/archi_logo_al_paso.png";
+import marketLogo from "../../../assets/possible_market_logo.png";
 import ProductItem from '../../components/ProductItem';
 import { barcodeService } from '../../../services/BarcodeService';
 import ProductService from '../../../services/product/ProductService';
@@ -148,8 +148,8 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
         <div className="bg-primary-50 rounded-lg shadow-sm p-2 md:p-3 lg:p-4 xl:p-8 mb-1 md:mb-2 lg:mb-3 xl:mb-4 flex-shrink-0">
           <div className="flex justify-center mb-1 md:mb-2 lg:mb-3 xl:mb-4">
             <img
-              src={archiLogo}
-              alt="Archi"
+              src={marketLogo}
+              alt="POSsible market"
               className="h-auto w-24 md:w-32 lg:w-48 xl:w-96"
             />
           </div>
@@ -162,7 +162,7 @@ export default function PriceCheckPage({ onBack }: PriceCheckPageProps) {
         <div className="flex-1 min-h-0 mb-1 md:mb-2 lg:mb-3 xl:mb-6 overflow-y-auto rounded-lg shadow-inner relative bg-primary-50">
           {/* Logo de fondo */}
           <img
-            src={archiLogo}
+            src={marketLogo}
             alt=""
             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 max-w-md opacity-20 pointer-events-none"
           />

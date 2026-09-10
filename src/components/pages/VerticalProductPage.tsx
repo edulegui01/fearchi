@@ -25,11 +25,12 @@ const money = (value: number) => `₲${value.toLocaleString('es-PY')}`;
  * compra de la app Flutter. El cliente pasa de un dispositivo al otro en diez
  * segundos y tienen que verse del mismo producto.
  *
- * Van escritos a mano y no tomados del tema de Tailwind porque ese tema es de
- * Archi: ahi `primary` es una escala de rojo y `secondary` uno de blancos, asi
- * que `text-secondary-800` era texto gris clarisimo y el fondo de la pantalla
- * entera era rojo salmon. Fijarlos aca no le cambia el aspecto al resto de la
- * app.
+ * Van escritos a mano y no tomados del tema de Tailwind. El tema ahora es el
+ * naranja de POSsible market y ya no choca como chocaba el rojo de Archi, pero
+ * `secondary` sigue siendo una escala de blancos —`text-secondary-800` es gris
+ * clarisimo, no texto oscuro— y sobre todo el `primary` del tema no es el
+ * naranja del colector: es #f39854, y aca manda el que usa `main.dart`. Si
+ * algun dia los dos naranjas se unifican, esta constante se puede tirar.
  */
 const NARANJA = '#F18F18';
 const TINTA = '#000000';

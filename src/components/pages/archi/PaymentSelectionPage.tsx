@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import archiLogo from "../../../assets/archi_logo_al_paso.png";
+import marketLogo from "../../../assets/possible_market_logo.png";
 import { ApiError } from "../../../utils/ApiError";
 import {
   CAPASU_SESSION_KEY,
@@ -196,8 +196,8 @@ export default function PaymentSelectionPage() {
         {/* Logo */}
         <div className="w-full flex justify-center mb-1 md:mb-2 lg:mb-4 xl:mb-6">
           <img
-            src={archiLogo}
-            alt="Archi Logo"
+            src={marketLogo}
+            alt="POSsible market"
             className="max-w-[200px] md:max-w-xs lg:max-w-xl xl:max-w-4xl w-full h-auto object-contain"
           />
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import archiLogo from "../../../assets/archi_logo_al_paso.png";
+import marketLogo from "../../../assets/possible_market_logo.png";
 import { barcodeService } from "../../../services/BarcodeService";
 import HttpClient from "../../../utils/httpClient";
 import { ApiError } from "../../../utils/ApiError";
@@ -227,8 +227,8 @@ export default function MainMenuPage({
         {/* Logo */}
         <div className="w-full flex justify-center mb-2 md:mb-3 lg:mb-4 xl:mb-10">
           <img
-            src={archiLogo}
-            alt="Archi Logo"
+            src={marketLogo}
+            alt="POSsible market"
             className="max-w-[280px] md:max-w-sm lg:max-w-2xl xl:max-w-5xl w-full h-auto object-contain animate-heartbeat"
           />
         </div>
@@ -279,7 +279,7 @@ export default function MainMenuPage({
           <div className="bg-white rounded-xl lg:rounded-2xl xl:rounded-3xl p-3 md:p-4 lg:p-6 xl:p-10 w-full max-w-sm md:max-w-md lg:max-w-xl xl:max-w-3xl shadow-2xl relative overflow-hidden">
             {/* Logo de fondo */}
             <img
-              src={archiLogo}
+              src={marketLogo}
               alt=""
               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2/3 max-w-xs opacity-20 pointer-events-none"
             />
